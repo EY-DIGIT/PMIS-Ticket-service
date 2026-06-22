@@ -62,4 +62,36 @@ public interface TicketRepository extends JpaRepository<TicketEntity, String> {
 
     @Query("SELECT MAX(CAST(SUBSTRING(t.ticketNumber, 10) AS int)) FROM TicketEntity t WHERE t.tenantId = :tenantId")
     Optional<Integer> findMaxSequenceForTenant(@Param("tenantId") String tenantId);
+
+    /**
+     * Single-pass aggregate: returns Object[6]
+     *   [0] total
+     *   [1] resolved  (RESOLVED | CLOSED)
+     *   [2] pending   (not RESOLVED | CLOSED | CANCELLED)
+     *   [3] slaBreached
+     *   [4] assigned  (assigneeUuid IS NOT NULL)
+     *   [5] notAssigned
+     */
+    @Query("""
+           SELECT COUNT(t),
+                  SUM(CASE WHEN t.status IN ('RESOLVED','CLOSED') THEN 1 ELSE 0 END),
+                  SUM(CASE WHEN t.status NOT IN ('RESOLVED','CLOSED','CANCELLED') THEN 1 ELSE 0 END),
+                  SUM(CASE WHEN t.slaBreached = true THEN 1 ELSE 0 END),
+                  SUM(CASE WHEN t.assigneeUuid IS NOT NULL THEN 1 ELSE 0 END),
+                  SUM(CASE WHEN t.assigneeUuid IS NULL THEN 1 ELSE 0 END)
+           FROM TicketEntity t
+           WHERE (:tenantId   IS NULL OR t.tenantId   = :tenantId)
+             AND (:projectId  IS NULL OR t.projectId  = :projectId)
+             AND (:activityId IS NULL OR t.activityId = :activityId)
+             AND (:taskId     IS NULL OR t.taskId     = :taskId)
+             AND (:fromDate   IS NULL OR t.createdAt  >= :fromDate)
+             AND (:toDate     IS NULL OR t.createdAt  <= :toDate)
+           """)
+    Object[] countStats(
+            @Param("tenantId")    String tenantId,
+            @Param("projectId")   String projectId,
+            @Param("activityId")  String activityId,
+            @Param("taskId")      String taskId,
+            @Param("fromDate")    Long fromDate,
+            @Param("toDate")      Long toDate);
 }

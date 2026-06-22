@@ -236,6 +236,44 @@ public class TicketService {
     }
 
     // =========================================================
+    // COUNTS dashboard (FR-35 summary)
+    // =========================================================
+    public TicketCountsResponse getCounts(String tenantId, String projectId,
+                                          String activityId, String taskId,
+                                          Long fromDate, Long toDate) {
+        Object[] row = ticketRepo.countStats(tenantId, projectId, activityId, taskId, fromDate, toDate);
+        long total       = toLong(row[0]);
+        long resolved    = toLong(row[1]);
+        long pending     = toLong(row[2]);
+        long slaBreached = toLong(row[3]);
+        long assigned    = toLong(row[4]);
+        long notAssigned = toLong(row[5]);
+
+        return TicketCountsResponse.builder()
+                .total(total)
+                .created(total)
+                .resolved(resolved)
+                .pending(pending)
+                .slaBreached(slaBreached)
+                .assigned(assigned)
+                .notAssigned(notAssigned)
+                .tenantId(tenantId)
+                .projectId(projectId)
+                .activityId(activityId)
+                .taskId(taskId)
+                .fromDate(fromDate)
+                .toDate(toDate)
+                .build();
+    }
+
+    private long toLong(Object val) {
+        if (val == null) return 0L;
+        if (val instanceof Long l) return l;
+        if (val instanceof Number n) return n.longValue();
+        return 0L;
+    }
+
+    // =========================================================
     // SLA config
     // =========================================================
     public List<SlaConfigResponse> listSlaConfig() {
