@@ -17,11 +17,15 @@ import java.util.*;
 @RequiredArgsConstructor
 public class TicketService {
 
-    private final TicketRepository ticketRepo;
-    private final TicketCommentRepository commentRepo;
-    private final TicketAttachmentRepository attachmentRepo;
-    private final SlaConfigRepository slaConfigRepo;
-    private final BulkOperationRepository bulkOpRepo;
+    private final TicketRepository            ticketRepo;
+    private final TicketCommentRepository     commentRepo;
+    private final TicketAttachmentRepository  attachmentRepo;
+    private final SlaConfigRepository         slaConfigRepo;
+    private final BulkOperationRepository     bulkOpRepo;
+    private final WorkingCalendarRepository   calendarRepo;
+    private final SlaEscalationLogRepository  escalationLogRepo;
+    private final SlaCalculatorService        slaCalculator;
+    private final NotificationService         notificationService;
 
     // =========================================================
     // CREATE  (FR-35, FR-36, FR-37)
@@ -34,8 +38,18 @@ public class TicketService {
 
         validate(input.getCategory(), input.getPriority(), input.getTitle());
 
-        // SLA deadline
-        Long deadline = computeDeadline(input.getCategory(), input.getPriority(), now);
+        Optional<SlaConfigEntity> slaOpt = findSlaConfig(
+                input.getCategory(), input.getPriority(), input.getTenantId());
+        WorkingCalendarEntity cal = findWorkingCalendar(input.getTenantId());
+
+        Long firstResponseDeadline = slaOpt
+                .filter(c -> c.getFirstResponseHours() != null)
+                .map(c -> slaCalculator.computeDeadline(now, c.getFirstResponseHours(), c.getClockType(), cal))
+                .orElse(null);
+
+        Long resolutionDeadline = slaOpt
+                .map(c -> slaCalculator.computeDeadline(now, c.getSlaHours(), c.getClockType(), cal))
+                .orElse(null);
 
         TicketEntity ticket = TicketEntity.builder()
                 .uuid(UUID.randomUUID().toString())
@@ -59,18 +73,29 @@ public class TicketService {
                 .reportedByUuid(user.getUuid())
                 .reportedByName(user.getUserName())
                 .reportedByEmail(user.getEmail())
-                .slaDeadline(deadline)
+                // SLA
+                .firstResponseDeadline(firstResponseDeadline)
+                .firstResponseBreached(false)
+                .firstResponseAt(input.getAssigneeUuid() != null ? now : null) // pre-assigned → responded immediately
+                .slaDeadline(resolutionDeadline)
                 .slaBreached(false)
+                .totalPausedMs(0L)
+                .slaStatus(resolutionDeadline != null ? "ON_TRACK" : "NO_SLA")
                 .createdAt(now)
                 .updatedAt(now)
                 .build();
 
         ticketRepo.save(ticket);
 
-        // system comment: ticket created
-        saveSystemComment(ticket.getUuid(), "Ticket created with priority " + input.getPriority()
-                + " — SLA deadline: " + (deadline != null ? new java.util.Date(deadline) : "N/A"),
-                user, now);
+        // Notify assignee if pre-assigned at creation time
+        if (ticket.getAssigneeUuid() != null) {
+            notificationService.notifyTicketCreated(ticket);
+        }
+
+        String deadlineLabel = resolutionDeadline != null ? new java.util.Date(resolutionDeadline).toString() : "N/A";
+        saveSystemComment(ticket.getUuid(),
+                "Ticket created · priority=" + input.getPriority()
+                        + " · SLA deadline=" + deadlineLabel, user, now);
 
         log.info("Created ticket {} for project={} activity={}",
                 ticket.getTicketNumber(), input.getProjectId(), input.getActivityId());
@@ -91,38 +116,86 @@ public class TicketService {
         String previousStatus   = ticket.getStatus();
         String previousAssignee = ticket.getAssigneeUuid();
 
+        // ---- Basic field updates ----
         if (update.getTitle()       != null) ticket.setTitle(update.getTitle());
         if (update.getDescription() != null) ticket.setDescription(update.getDescription());
-        if (update.getPriority()    != null) ticket.setPriority(update.getPriority());
         if (update.getBaselineRef() != null) ticket.setBaselineRef(update.getBaselineRef());
         if (update.getContractRef() != null) ticket.setContractRef(update.getContractRef());
 
-        // status change
-        if (update.getStatus() != null && !update.getStatus().equals(ticket.getStatus())) {
-            ticket.setStatus(update.getStatus());
-            if ("RESOLVED".equals(update.getStatus())) ticket.setResolvedAt(now);
-            if ("CLOSED".equals(update.getStatus()))   ticket.setClosedAt(now);
-
-            saveComment(ticket.getUuid(), "STATUS_CHANGE",
-                    update.getComment(), previousStatus, update.getStatus(),
-                    null, null, user, now);
+        // ---- Priority change → recalculate SLA deadlines from now ----
+        if (update.getPriority() != null && !update.getPriority().equals(ticket.getPriority())) {
+            ticket.setPriority(update.getPriority());
+            recalculateDeadlines(ticket, now);
+            saveSystemComment(ticket.getUuid(),
+                    "Priority changed to " + update.getPriority() + " — SLA deadlines recalculated.", user, now);
         }
 
-        // assignment change
+        // ---- Status change ----
+        if (update.getStatus() != null && !update.getStatus().equals(ticket.getStatus())) {
+            String newStatus = update.getStatus();
+
+            // Entering PENDING → pause SLA clock
+            if ("PENDING".equals(newStatus) && ticket.getSlaPausedAt() == null) {
+                ticket.setSlaPausedAt(now);
+                ticket.setSlaStatus("PAUSED");
+                saveSystemComment(ticket.getUuid(),
+                        "SLA clock paused — ticket is waiting for customer response.", user, now);
+            }
+
+            // Leaving PENDING → resume SLA clock
+            if ("PENDING".equals(previousStatus) && !"PENDING".equals(newStatus)
+                    && ticket.getSlaPausedAt() != null) {
+                long pausedDuration = now - ticket.getSlaPausedAt();
+                ticket.setTotalPausedMs(orZero(ticket.getTotalPausedMs()) + pausedDuration);
+                // Extend both deadlines by the paused duration
+                if (ticket.getSlaDeadline() != null)
+                    ticket.setSlaDeadline(ticket.getSlaDeadline() + pausedDuration);
+                if (ticket.getFirstResponseDeadline() != null && ticket.getFirstResponseAt() == null)
+                    ticket.setFirstResponseDeadline(ticket.getFirstResponseDeadline() + pausedDuration);
+                ticket.setSlaPausedAt(null);
+                saveSystemComment(ticket.getUuid(),
+                        "SLA clock resumed after " + (pausedDuration / 60_000) + " min on hold. "
+                                + "Deadlines extended accordingly.", user, now);
+            }
+
+            ticket.setStatus(newStatus);
+            if ("RESOLVED".equals(newStatus)) ticket.setResolvedAt(now);
+            if ("CLOSED".equals(newStatus))   ticket.setClosedAt(now);
+
+            saveComment(ticket.getUuid(), "STATUS_CHANGE",
+                    update.getComment(), previousStatus, newStatus,
+                    null, null, user, now);
+            notificationService.notifyStatusChanged(ticket, previousStatus);
+        }
+
+        // ---- Assignment change ----
         if (update.getAssigneeUuid() != null && !update.getAssigneeUuid().equals(ticket.getAssigneeUuid())) {
             ticket.setAssigneeUuid(update.getAssigneeUuid());
             ticket.setAssigneeName(update.getAssigneeName());
             ticket.setAssigneeEmail(update.getAssigneeEmail());
 
+            // Record first response when assignee is set for the first time
+            if (ticket.getFirstResponseAt() == null) {
+                ticket.setFirstResponseAt(now);
+                saveSystemComment(ticket.getUuid(),
+                        "First response recorded — assigned to " + update.getAssigneeName(), user, now);
+            }
+
             saveComment(ticket.getUuid(), "ASSIGNMENT",
                     update.getComment(), null, null,
                     previousAssignee, update.getAssigneeUuid(), user, now);
+            notificationService.notifyTicketAssigned(ticket);
         }
 
-        // plain comment
+        // ---- Plain comment ----
         if (update.getComment() != null && update.getStatus() == null && update.getAssigneeUuid() == null) {
             saveComment(ticket.getUuid(), "COMMENT",
                     update.getComment(), null, null, null, null, user, now);
+        }
+
+        // ---- Refresh SLA status ----
+        if (ticket.getSlaPausedAt() == null) {
+            ticket.setSlaStatus(slaCalculator.computeSlaStatus(ticket, now));
         }
 
         ticket.setUpdatedAt(now);
@@ -140,12 +213,10 @@ public class TicketService {
     }
 
     // =========================================================
-    // SEARCH  (FR-35.5 bulk query)
+    // SEARCH
     // =========================================================
     public SearchResponse search(SearchTicketRequest req) {
         var c = req.getCriteria();
-        // Join multi-status into first value for simplicity;
-        // for full multi-status extend the JPQL with IN clause.
         String statusParam = (c.getStatus() != null && !c.getStatus().isEmpty())
                 ? c.getStatus().get(0) : null;
 
@@ -154,7 +225,6 @@ public class TicketService {
                 c.getCategory(), c.getPriority(), statusParam,
                 c.getAssigneeUuid(), c.getSlaBreached(), c.getFromDate(), c.getToDate());
 
-        // pagination
         int offset = c.getOffset() != null ? c.getOffset() : 0;
         int limit  = c.getLimit()  != null ? c.getLimit()  : 20;
         List<TicketEntity> page = results.stream().skip(offset).limit(limit).toList();
@@ -182,7 +252,6 @@ public class TicketService {
                 .performedBy(user.getUuid())
                 .createdAt(now)
                 .build();
-
         bulkOpRepo.save(entity);
 
         int success = 0, failed = 0;
@@ -190,6 +259,7 @@ public class TicketService {
             try {
                 TicketEntity ticket = ticketRepo.findById(ticketUuid).orElseThrow();
                 applyBulkOp(ticket, op, user, now);
+                ticket.setSlaStatus(slaCalculator.computeSlaStatus(ticket, now));
                 ticketRepo.save(ticket);
                 success++;
             } catch (Exception ex) {
@@ -216,31 +286,11 @@ public class TicketService {
     }
 
     // =========================================================
-    // SLA breach checker (FR-37.2) - runs every 15 minutes
-    // =========================================================
-    @Scheduled(fixedRate = 900_000)
-    @Transactional
-    public void checkSlaBreaches() {
-        long now     = System.currentTimeMillis();
-        var breached = ticketRepo.findSlaBreached(now);
-        if (breached.isEmpty()) return;
-
-        log.info("SLA checker: {} ticket(s) breached SLA", breached.size());
-        for (TicketEntity t : breached) {
-            t.setSlaBreached(true);
-            t.setSlaBreachedAt(now);
-            saveSystemComment(t.getUuid(),
-                    "SLA BREACHED — ticket has exceeded the resolution deadline.", null, now);
-        }
-        ticketRepo.saveAll(breached);
-    }
-
-    // =========================================================
-    // COUNTS dashboard (FR-35 summary)
+    // COUNTS dashboard
     // =========================================================
     public TicketCountsResponse getCounts(String tenantId, String projectId,
-                                          String activityId, String taskId,
-                                          Long fromDate, Long toDate) {
+                                           String activityId, String taskId,
+                                           Long fromDate, Long toDate) {
         Object[] row = ticketRepo.countStats(tenantId, projectId, activityId, taskId, fromDate, toDate);
         long total       = toLong(row[0]);
         long resolved    = toLong(row[1]);
@@ -248,51 +298,224 @@ public class TicketService {
         long slaBreached = toLong(row[3]);
         long assigned    = toLong(row[4]);
         long notAssigned = toLong(row[5]);
+        long frBreached  = toLong(row[6]);
 
         return TicketCountsResponse.builder()
-                .total(total)
-                .created(total)
-                .resolved(resolved)
-                .pending(pending)
+                .total(total).created(total)
+                .resolved(resolved).pending(pending)
                 .slaBreached(slaBreached)
-                .assigned(assigned)
-                .notAssigned(notAssigned)
-                .tenantId(tenantId)
-                .projectId(projectId)
-                .activityId(activityId)
-                .taskId(taskId)
-                .fromDate(fromDate)
-                .toDate(toDate)
+                .firstResponseBreached(frBreached)
+                .assigned(assigned).notAssigned(notAssigned)
+                .tenantId(tenantId).projectId(projectId)
+                .activityId(activityId).taskId(taskId)
+                .fromDate(fromDate).toDate(toDate)
                 .build();
     }
 
-    private long toLong(Object val) {
-        if (val == null) return 0L;
-        if (val instanceof Long l) return l;
-        if (val instanceof Number n) return n.longValue();
-        return 0L;
+    // =========================================================
+    // SLA breach checker — runs every 15 minutes (FR-37.2)
+    // =========================================================
+    @Scheduled(fixedRate = 900_000)
+    @Transactional
+    public void checkSlaBreaches() {
+        long now = System.currentTimeMillis();
+
+        // ---- Resolution SLA breaches ----
+        List<TicketEntity> newlyBreached = ticketRepo.findSlaBreached(now);
+        if (!newlyBreached.isEmpty()) {
+            log.info("SLA checker: {} ticket(s) newly breached resolution SLA", newlyBreached.size());
+            for (TicketEntity t : newlyBreached) {
+                t.setSlaBreached(true);
+                t.setSlaBreachedAt(now);
+                t.setSlaStatus("BREACHED");
+                saveSystemComment(t.getUuid(),
+                        "SLA BREACHED — resolution deadline exceeded.", null, now);
+                logEscalation(t.getUuid(), "BREACH", now);
+                notificationService.notifySlaEscalation(t, "BREACH");
+            }
+            ticketRepo.saveAll(newlyBreached);
+        }
+
+        // ---- First-response SLA breaches ----
+        List<TicketEntity> frBreached = ticketRepo.findFirstResponseBreached(now);
+        if (!frBreached.isEmpty()) {
+            log.info("SLA checker: {} ticket(s) breached first-response SLA", frBreached.size());
+            for (TicketEntity t : frBreached) {
+                t.setFirstResponseBreached(true);
+                saveSystemComment(t.getUuid(),
+                        "FIRST-RESPONSE SLA BREACHED — no response recorded within the deadline.", null, now);
+                logEscalation(t.getUuid(), "FIRST_RESPONSE", now);
+                notificationService.notifySlaEscalation(t, "FIRST_RESPONSE");
+            }
+            ticketRepo.saveAll(frBreached);
+        }
+
+        // ---- AT_RISK status updates (50 % and 75 %) ----
+        List<TicketEntity> activeTickets = ticketRepo.findActiveTicketsWithDeadline();
+        List<TicketEntity> atRiskChanged = new ArrayList<>();
+        for (TicketEntity t : activeTickets) {
+            if (t.getSlaPausedAt() != null) continue;
+            String newStatus = slaCalculator.computeSlaStatus(t, now);
+            if (!newStatus.equals(t.getSlaStatus())) {
+                t.setSlaStatus(newStatus);
+                atRiskChanged.add(t);
+                if ("AT_RISK_50".equals(newStatus)) {
+                    logEscalation(t.getUuid(), "RISK_50", now);
+                    notificationService.notifySlaEscalation(t, "RISK_50");
+                }
+                if ("AT_RISK_75".equals(newStatus)) {
+                    logEscalation(t.getUuid(), "RISK_75", now);
+                    notificationService.notifySlaEscalation(t, "RISK_75");
+                }
+            }
+        }
+        if (!atRiskChanged.isEmpty()) ticketRepo.saveAll(atRiskChanged);
     }
 
     // =========================================================
-    // SLA config
+    // SLA config CRUD
     // =========================================================
+    @Transactional
+    public SlaConfigResponse createSlaConfig(SlaConfigRequest req) {
+        var input = req.getSlaConfig();
+        long now  = System.currentTimeMillis();
+        SlaConfigEntity cfg = SlaConfigEntity.builder()
+                .uuid(UUID.randomUUID().toString())
+                .tenantId(input.getTenantId())
+                .category(input.getCategory())
+                .priority(input.getPriority())
+                .firstResponseHours(input.getFirstResponseHours())
+                .slaHours(input.getResolutionHours())
+                .clockType(input.getClockType() != null ? input.getClockType() : "BUSINESS_HOURS")
+                .escalation50PctRoles(input.getEscalation50PctRoles())
+                .escalation75PctRoles(input.getEscalation75PctRoles())
+                .escalationBreachRoles(input.getEscalationBreachRoles())
+                .isActive(input.getIsActive() != null ? input.getIsActive() : true)
+                .createdAt(now).updatedAt(now)
+                .build();
+        return toSlaConfigResponse(slaConfigRepo.save(cfg));
+    }
+
+    @Transactional
+    public SlaConfigResponse updateSlaConfig(String uuid, SlaConfigRequest req) {
+        SlaConfigEntity cfg = slaConfigRepo.findById(uuid)
+                .orElseThrow(() -> new NoSuchElementException("SLA config not found: " + uuid));
+        var input = req.getSlaConfig();
+        long now  = System.currentTimeMillis();
+
+        if (input.getFirstResponseHours() != null) cfg.setFirstResponseHours(input.getFirstResponseHours());
+        if (input.getResolutionHours()    != null) cfg.setSlaHours(input.getResolutionHours());
+        if (input.getClockType()          != null) cfg.setClockType(input.getClockType());
+        if (input.getEscalation50PctRoles()  != null) cfg.setEscalation50PctRoles(input.getEscalation50PctRoles());
+        if (input.getEscalation75PctRoles()  != null) cfg.setEscalation75PctRoles(input.getEscalation75PctRoles());
+        if (input.getEscalationBreachRoles() != null) cfg.setEscalationBreachRoles(input.getEscalationBreachRoles());
+        if (input.getIsActive()           != null) cfg.setIsActive(input.getIsActive());
+        cfg.setUpdatedAt(now);
+        return toSlaConfigResponse(slaConfigRepo.save(cfg));
+    }
+
     public List<SlaConfigResponse> listSlaConfig() {
-        return slaConfigRepo.findByIsActiveTrueOrderByCategoryAscPriorityAsc().stream()
-                .map(this::toSlaConfigResponse).toList();
+        return slaConfigRepo.findByIsActiveTrueOrderByCategoryAscPriorityAsc()
+                .stream().map(this::toSlaConfigResponse).toList();
     }
 
     // =========================================================
-    // Helpers
+    // Working calendar CRUD
     // =========================================================
+    @Transactional
+    public WorkingCalendarResponse createCalendar(WorkingCalendarRequest req) {
+        var input = req.getCalendar();
+        long now  = System.currentTimeMillis();
+        WorkingCalendarEntity cal = WorkingCalendarEntity.builder()
+                .uuid(UUID.randomUUID().toString())
+                .tenantId(input.getTenantId())
+                .name(input.getName())
+                .timezone(input.getTimezone() != null ? input.getTimezone() : "UTC")
+                .workDayStart(input.getWorkDayStart() != null ? input.getWorkDayStart() : 9)
+                .workDayEnd(input.getWorkDayEnd()     != null ? input.getWorkDayEnd()   : 18)
+                .workDays(input.getWorkDays() != null ? input.getWorkDays()
+                        : "MONDAY,TUESDAY,WEDNESDAY,THURSDAY,FRIDAY")
+                .holidays(input.getHolidays())
+                .isActive(input.getIsActive() != null ? input.getIsActive() : true)
+                .createdAt(now).updatedAt(now)
+                .build();
+        return toCalendarResponse(calendarRepo.save(cal));
+    }
+
+    @Transactional
+    public WorkingCalendarResponse updateCalendar(String uuid, WorkingCalendarRequest req) {
+        WorkingCalendarEntity cal = calendarRepo.findById(uuid)
+                .orElseThrow(() -> new NoSuchElementException("Calendar not found: " + uuid));
+        var input = req.getCalendar();
+        long now  = System.currentTimeMillis();
+
+        if (input.getName()         != null) cal.setName(input.getName());
+        if (input.getTimezone()     != null) cal.setTimezone(input.getTimezone());
+        if (input.getWorkDayStart() != null) cal.setWorkDayStart(input.getWorkDayStart());
+        if (input.getWorkDayEnd()   != null) cal.setWorkDayEnd(input.getWorkDayEnd());
+        if (input.getWorkDays()     != null) cal.setWorkDays(input.getWorkDays());
+        if (input.getHolidays()     != null) cal.setHolidays(input.getHolidays());
+        if (input.getIsActive()     != null) cal.setIsActive(input.getIsActive());
+        cal.setUpdatedAt(now);
+        return toCalendarResponse(calendarRepo.save(cal));
+    }
+
+    public List<WorkingCalendarResponse> listCalendars() {
+        return calendarRepo.findByIsActiveTrueOrderByTenantIdAscNameAsc()
+                .stream().map(this::toCalendarResponse).toList();
+    }
+
+    // =========================================================
+    // Private helpers
+    // =========================================================
+
+    /** Tenant-first SLA config lookup with global fallback. */
+    private Optional<SlaConfigEntity> findSlaConfig(String category, String priority, String tenantId) {
+        if (tenantId != null) {
+            var override = slaConfigRepo
+                    .findByCategoryAndPriorityAndTenantIdAndIsActiveTrue(category, priority, tenantId);
+            if (override.isPresent()) return override;
+        }
+        return slaConfigRepo.findByCategoryAndPriorityAndTenantIdIsNullAndIsActiveTrue(category, priority);
+    }
+
+    /** Tenant-first calendar lookup with global fallback. */
+    private WorkingCalendarEntity findWorkingCalendar(String tenantId) {
+        if (tenantId != null) {
+            var cal = calendarRepo.findByTenantIdAndIsActiveTrue(tenantId);
+            if (cal.isPresent()) return cal.get();
+        }
+        return calendarRepo.findByTenantIdIsNullAndIsActiveTrue().orElse(null);
+    }
+
+    /** Recalculate both deadlines from now using the current category/priority/tenantId. */
+    private void recalculateDeadlines(TicketEntity ticket, long now) {
+        findSlaConfig(ticket.getCategory(), ticket.getPriority(), ticket.getTenantId()).ifPresent(cfg -> {
+            WorkingCalendarEntity cal = findWorkingCalendar(ticket.getTenantId());
+            ticket.setSlaDeadline(slaCalculator.computeDeadline(now, cfg.getSlaHours(), cfg.getClockType(), cal));
+            if (cfg.getFirstResponseHours() != null && ticket.getFirstResponseAt() == null) {
+                ticket.setFirstResponseDeadline(
+                        slaCalculator.computeDeadline(now, cfg.getFirstResponseHours(), cfg.getClockType(), cal));
+            }
+        });
+    }
+
+    /** Log an escalation only if it has not already been recorded for this ticket + level. */
+    private void logEscalation(String ticketUuid, String level, long now) {
+        if (!escalationLogRepo.existsByTicketUuidAndEscalationLevel(ticketUuid, level)) {
+            escalationLogRepo.save(SlaEscalationLogEntity.builder()
+                    .uuid(UUID.randomUUID().toString())
+                    .ticketUuid(ticketUuid)
+                    .escalationLevel(level)
+                    .escalatedAt(now)
+                    .build());
+            log.info("SLA escalation [{}] recorded for ticket {}", level, ticketUuid);
+        }
+    }
+
     private String nextTicketNumber(String tenantId) {
         int seq = ticketRepo.findMaxSequenceForTenant(tenantId).orElse(0) + 1;
         return "TKT-" + java.time.Year.now().getValue() + "-" + String.format("%05d", seq);
-    }
-
-    private Long computeDeadline(String category, String priority, long now) {
-        return slaConfigRepo.findByCategoryAndPriorityAndIsActiveTrue(category, priority)
-                .map(cfg -> now + ((long) cfg.getSlaHours() * 3_600_000L))
-                .orElse(null);
     }
 
     private void applyBulkOp(TicketEntity t,
@@ -313,6 +536,7 @@ public class TicketService {
                 t.setAssigneeUuid(p.getAssigneeUuid());
                 t.setAssigneeName(p.getAssigneeName());
                 t.setAssigneeEmail(p.getAssigneeEmail());
+                if (t.getFirstResponseAt() == null) t.setFirstResponseAt(now);
             }
             case "CLOSE" -> {
                 saveComment(t.getUuid(), "STATUS_CHANGE", p.getComment(),
@@ -362,8 +586,6 @@ public class TicketService {
 
     private TicketResponse toResponse(TicketEntity t, boolean includeComments) {
         long now = System.currentTimeMillis();
-        Long remaining = (t.getSlaDeadline() != null && !Boolean.TRUE.equals(t.getSlaBreached()))
-                ? Math.max(0, t.getSlaDeadline() - now) : null;
 
         List<TicketResponse.CommentResponse> comments = null;
         if (includeComments) {
@@ -402,8 +624,18 @@ public class TicketService {
                         t.getAssigneeUuid(), t.getAssigneeName(), t.getAssigneeEmail()) : null)
                 .reporter(new TicketResponse.UserRef(
                         t.getReportedByUuid(), t.getReportedByName(), t.getReportedByEmail()))
-                .slaDeadline(t.getSlaDeadline()).slaBreached(t.getSlaBreached())
-                .slaRemainingMs(remaining).slaBreachedAt(t.getSlaBreachedAt())
+                // SLA — resolution
+                .slaDeadline(t.getSlaDeadline())
+                .slaBreached(t.getSlaBreached())
+                .slaRemainingMs(slaCalculator.slaRemainingMs(t, now))
+                .slaBreachedAt(t.getSlaBreachedAt())
+                .slaStatus(t.getSlaStatus())
+                // SLA — first response
+                .firstResponseDeadline(t.getFirstResponseDeadline())
+                .firstResponseBreached(t.getFirstResponseBreached())
+                .firstResponseAt(t.getFirstResponseAt())
+                .firstResponseRemainingMs(slaCalculator.firstResponseRemainingMs(t, now))
+                // extras
                 .baselineRef(t.getBaselineRef()).contractRef(t.getContractRef())
                 .comments(comments)
                 .createdAt(t.getCreatedAt()).updatedAt(t.getUpdatedAt())
@@ -412,7 +644,47 @@ public class TicketService {
     }
 
     private SlaConfigResponse toSlaConfigResponse(SlaConfigEntity e) {
-        return new SlaConfigResponse(e.getUuid(), e.getCategory(), e.getPriority(),
-                e.getSlaHours(), e.getEscalationHours(), e.getIsActive());
+        return SlaConfigResponse.builder()
+                .uuid(e.getUuid())
+                .tenantId(e.getTenantId())
+                .category(e.getCategory())
+                .priority(e.getPriority())
+                .firstResponseHours(e.getFirstResponseHours())
+                .slaHours(e.getSlaHours())
+                .clockType(e.getClockType())
+                .escalation50PctRoles(e.getEscalation50PctRoles())
+                .escalation75PctRoles(e.getEscalation75PctRoles())
+                .escalationBreachRoles(e.getEscalationBreachRoles())
+                .isActive(e.getIsActive())
+                .createdAt(e.getCreatedAt())
+                .updatedAt(e.getUpdatedAt())
+                .build();
+    }
+
+    private WorkingCalendarResponse toCalendarResponse(WorkingCalendarEntity e) {
+        return WorkingCalendarResponse.builder()
+                .uuid(e.getUuid())
+                .tenantId(e.getTenantId())
+                .name(e.getName())
+                .timezone(e.getTimezone())
+                .workDayStart(e.getWorkDayStart())
+                .workDayEnd(e.getWorkDayEnd())
+                .workDays(e.getWorkDays())
+                .holidays(e.getHolidays())
+                .isActive(e.getIsActive())
+                .createdAt(e.getCreatedAt())
+                .updatedAt(e.getUpdatedAt())
+                .build();
+    }
+
+    private long toLong(Object val) {
+        if (val == null) return 0L;
+        if (val instanceof Long l)   return l;
+        if (val instanceof Number n) return n.longValue();
+        return 0L;
+    }
+
+    private long orZero(Long val) {
+        return val != null ? val : 0L;
     }
 }

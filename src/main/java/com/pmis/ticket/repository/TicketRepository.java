@@ -45,7 +45,7 @@ public interface TicketRepository extends JpaRepository<TicketEntity, String> {
             @Param("fromDate")    Long fromDate,
             @Param("toDate")      Long toDate);
 
-    /** Find all open/in-progress tickets whose SLA deadline has passed. */
+    /** Tickets whose resolution SLA has just been breached (not yet flagged). */
     @Query("""
            SELECT t FROM TicketEntity t
             WHERE t.slaBreached = false
@@ -54,6 +54,27 @@ public interface TicketRepository extends JpaRepository<TicketEntity, String> {
               AND t.status NOT IN ('RESOLVED','CLOSED','CANCELLED')
            """)
     List<TicketEntity> findSlaBreached(@Param("now") long now);
+
+    /** Tickets whose first-response deadline has passed with no response recorded. */
+    @Query("""
+           SELECT t FROM TicketEntity t
+            WHERE t.firstResponseBreached = false
+              AND t.firstResponseAt IS NULL
+              AND t.firstResponseDeadline IS NOT NULL
+              AND t.firstResponseDeadline < :now
+              AND t.status NOT IN ('RESOLVED','CLOSED','CANCELLED')
+           """)
+    List<TicketEntity> findFirstResponseBreached(@Param("now") long now);
+
+    /** Active tickets that have a resolution deadline — used for AT_RISK percentage updates. */
+    @Query("""
+           SELECT t FROM TicketEntity t
+            WHERE t.slaDeadline IS NOT NULL
+              AND t.slaBreached = false
+              AND t.slaPausedAt IS NULL
+              AND t.status NOT IN ('RESOLVED','CLOSED','CANCELLED')
+           """)
+    List<TicketEntity> findActiveTicketsWithDeadline();
 
     @Query("SELECT COUNT(t) FROM TicketEntity t WHERE t.status NOT IN ('RESOLVED','CLOSED','CANCELLED') AND t.slaBreached = true")
     long countActiveBreached();

@@ -31,11 +31,18 @@ public class TicketResponse {
     private UserRef assignee;
     private UserRef reporter;
 
-    // SLA
+    // SLA — resolution
     private Long    slaDeadline;
     private Boolean slaBreached;
-    private Long    slaRemainingMs;  // computed: slaDeadline - now (null if breached)
+    private Long    slaRemainingMs;       // computed: effective deadline - now (null if breached)
     private Long    slaBreachedAt;
+    private String  slaStatus;            // ON_TRACK | AT_RISK_50 | AT_RISK_75 | BREACHED | PAUSED | NO_SLA
+
+    // SLA — first response
+    private Long    firstResponseDeadline;
+    private Boolean firstResponseBreached;
+    private Long    firstResponseAt;      // epoch ms when first response was recorded
+    private Long    firstResponseRemainingMs; // null if already responded or deadline passed
 
     // Change extras
     private String baselineRef;

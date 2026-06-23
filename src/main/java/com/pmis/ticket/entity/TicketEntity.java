@@ -66,7 +66,7 @@ public class TicketEntity {
     @Column(name = "assignee_email", length = 256)
     private String assigneeEmail;
 
-    // ---- SLA ----
+    // ---- SLA — resolution ----
     @Column(name = "sla_deadline")
     private Long slaDeadline;
 
@@ -75,6 +75,33 @@ public class TicketEntity {
 
     @Column(name = "sla_breached_at")
     private Long slaBreachedAt;
+
+    // ---- SLA — first response ----
+    /** Epoch ms by which the ticket must receive a first response (assignee set). */
+    @Column(name = "first_response_deadline")
+    private Long firstResponseDeadline;
+
+    /** True once the first-response deadline passes without a response recorded. */
+    @Column(name = "first_response_breached", nullable = false)
+    private Boolean firstResponseBreached = false;
+
+    /** Epoch ms when a non-reporter user first responded (assignee set / comment added). */
+    @Column(name = "first_response_at")
+    private Long firstResponseAt;
+
+    // ---- SLA — pause / resume ----
+    /** Epoch ms when the SLA clock was last paused (ticket → PENDING). null = running. */
+    @Column(name = "sla_paused_at")
+    private Long slaPausedAt;
+
+    /** Total accumulated paused duration in ms across all PENDING periods. */
+    @Column(name = "total_paused_ms", nullable = false)
+    private Long totalPausedMs = 0L;
+
+    // ---- SLA — composite status ----
+    /** ON_TRACK | AT_RISK_50 | AT_RISK_75 | BREACHED | PAUSED | NO_SLA */
+    @Column(name = "sla_status", nullable = false, length = 16)
+    private String slaStatus = "ON_TRACK";
 
     // ---- Change ticket extras (FR-36.3) ----
     @Column(name = "baseline_ref", length = 128)

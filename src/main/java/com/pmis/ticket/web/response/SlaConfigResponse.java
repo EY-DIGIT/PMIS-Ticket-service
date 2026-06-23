@@ -6,10 +6,17 @@ import lombok.*;
 @Data @Builder @NoArgsConstructor @AllArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class SlaConfigResponse {
-    private String uuid;
-    private String category;
-    private String priority;
-    private Integer slaHours;
-    private Integer escalationHours;
+    private String  uuid;
+    private String  tenantId;              // null = global default
+    private String  category;
+    private String  priority;
+    private Integer firstResponseHours;
+    private Integer slaHours;             // resolution hours
+    private String  clockType;            // BUSINESS_HOURS | CALENDAR_HOURS
+    private String  escalation50PctRoles; // JSON array
+    private String  escalation75PctRoles; // JSON array
+    private String  escalationBreachRoles;// JSON array
     private Boolean isActive;
+    private Long    createdAt;
+    private Long    updatedAt;
 }
