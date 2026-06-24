@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(del \"A:\\\\EY Projects\\\\PMIS Repo\\\\PMIS-Ticket-service\\\\src\\\\main\\\\java\\\\com\\\\pmis\\\\ticket\\\\service\\\\TicketService.java\")"
+    ]
+  }
+}
