@@ -1,0 +1,23 @@
+# Maven build output — never commit compiled artifacts
+target/
+
+# IDE files
+.idea/
+*.iml
+.classpath
+.project
+.settings/
+*.iws
+
+# VS Code
+.vscode/
+
+# Environment / secrets
+.env
+*.env
+application-local.properties
+application-secret.properties
+
+# OS
+.DS_Store
+Thumbs.db
