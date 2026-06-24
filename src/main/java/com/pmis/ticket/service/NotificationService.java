@@ -26,11 +26,10 @@ import java.util.Map;
  *          Content-Type: application/json
  * Body:
  * {
- *   "to":               ["a@example.com"],
- *   "cc":               [],
- *   "subject":          "...",
- *   "body":             "plain-text email body",
- *   "notificationType": "TICKET_ASSIGNED"
+ *   "to":      ["a@example.com"],
+ *   "cc":      [],
+ *   "subject": "...",
+ *   "body":    "plain-text email body"
  * }
  */
 @Service
@@ -133,11 +132,10 @@ public class NotificationService {
                       String subject, String body, String notificationType) {
         try {
             Map<String, Object> payload = new LinkedHashMap<>();
-            payload.put("to",               to);
-            payload.put("cc",               cc);
-            payload.put("subject",          subject);
-            payload.put("body",             body);
-            payload.put("notificationType", notificationType);
+            payload.put("to",      to);
+            payload.put("cc",      cc);
+            payload.put("subject", subject);
+            payload.put("body",    body);
 
             notificationRestClient.post()
                     .body(payload)
