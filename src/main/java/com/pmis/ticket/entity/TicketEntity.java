@@ -19,7 +19,7 @@ public class TicketEntity {
     @Column(name = "ticket_number", nullable = false, unique = true, length = 64)
     private String ticketNumber;
 
-    @Column(name = "tenant_id", nullable = false, length = 64)
+    @Column(name = "tenant_id", length = 64)
     private String tenantId;
 
     // ---- category (FR-36) ----
@@ -70,6 +70,7 @@ public class TicketEntity {
     @Column(name = "sla_deadline")
     private Long slaDeadline;
 
+    @Builder.Default
     @Column(name = "sla_breached", nullable = false)
     private Boolean slaBreached = false;
 
@@ -82,7 +83,9 @@ public class TicketEntity {
     private Long firstResponseDeadline;
 
     /** True once the first-response deadline passes without a response recorded. */
-    @Column(name = "first_response_breached", nullable = false)
+    @Builder.Default
+    @Column(name = "first_response_breached", nullable = false,
+            columnDefinition = "boolean default false")
     private Boolean firstResponseBreached = false;
 
     /** Epoch ms when a non-reporter user first responded (assignee set / comment added). */
@@ -95,12 +98,16 @@ public class TicketEntity {
     private Long slaPausedAt;
 
     /** Total accumulated paused duration in ms across all PENDING periods. */
-    @Column(name = "total_paused_ms", nullable = false)
+    @Builder.Default
+    @Column(name = "total_paused_ms", nullable = false,
+            columnDefinition = "bigint default 0")
     private Long totalPausedMs = 0L;
 
     // ---- SLA — composite status ----
     /** ON_TRACK | AT_RISK_50 | AT_RISK_75 | BREACHED | PAUSED | NO_SLA */
-    @Column(name = "sla_status", nullable = false, length = 16)
+    @Builder.Default
+    @Column(name = "sla_status", nullable = false,
+            columnDefinition = "varchar(16) default 'ON_TRACK'")
     private String slaStatus = "ON_TRACK";
 
     // ---- Change ticket extras (FR-36.3) ----

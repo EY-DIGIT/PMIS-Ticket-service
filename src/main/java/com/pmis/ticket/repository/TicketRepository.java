@@ -84,14 +84,19 @@ public interface TicketRepository extends JpaRepository<TicketEntity, String> {
     @Query("SELECT MAX(CAST(SUBSTRING(t.ticketNumber, 10) AS int)) FROM TicketEntity t WHERE t.tenantId = :tenantId")
     Optional<Integer> findMaxSequenceForTenant(@Param("tenantId") String tenantId);
 
+    /** Fallback used when tenantId is null — sequences across the whole table. */
+    @Query("SELECT MAX(CAST(SUBSTRING(t.ticketNumber, 10) AS int)) FROM TicketEntity t")
+    Optional<Integer> findGlobalMaxSequence();
+
     /**
-     * Single-pass aggregate: returns Object[6]
+     * Single-pass aggregate: returns Object[7]
      *   [0] total
-     *   [1] resolved  (RESOLVED | CLOSED)
-     *   [2] pending   (not RESOLVED | CLOSED | CANCELLED)
+     *   [1] resolved             (RESOLVED | CLOSED)
+     *   [2] pending              (not RESOLVED | CLOSED | CANCELLED)
      *   [3] slaBreached
-     *   [4] assigned  (assigneeUuid IS NOT NULL)
+     *   [4] assigned             (assigneeUuid IS NOT NULL)
      *   [5] notAssigned
+     *   [6] firstResponseBreached
      */
     @Query("""
            SELECT COUNT(t),
@@ -99,7 +104,8 @@ public interface TicketRepository extends JpaRepository<TicketEntity, String> {
                   SUM(CASE WHEN t.status NOT IN ('RESOLVED','CLOSED','CANCELLED') THEN 1 ELSE 0 END),
                   SUM(CASE WHEN t.slaBreached = true THEN 1 ELSE 0 END),
                   SUM(CASE WHEN t.assigneeUuid IS NOT NULL THEN 1 ELSE 0 END),
-                  SUM(CASE WHEN t.assigneeUuid IS NULL THEN 1 ELSE 0 END)
+                  SUM(CASE WHEN t.assigneeUuid IS NULL THEN 1 ELSE 0 END),
+                  SUM(CASE WHEN t.firstResponseBreached = true THEN 1 ELSE 0 END)
            FROM TicketEntity t
            WHERE (:tenantId   IS NULL OR t.tenantId   = :tenantId)
              AND (:projectId  IS NULL OR t.projectId  = :projectId)

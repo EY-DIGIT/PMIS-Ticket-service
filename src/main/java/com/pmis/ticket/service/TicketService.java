@@ -514,7 +514,10 @@ public class TicketService {
     }
 
     private String nextTicketNumber(String tenantId) {
-        int seq = ticketRepo.findMaxSequenceForTenant(tenantId).orElse(0) + 1;
+        Optional<Integer> max = (tenantId != null)
+                ? ticketRepo.findMaxSequenceForTenant(tenantId)
+                : ticketRepo.findGlobalMaxSequence();
+        int seq = max.orElse(0) + 1;
         return "TKT-" + java.time.Year.now().getValue() + "-" + String.format("%05d", seq);
     }
 

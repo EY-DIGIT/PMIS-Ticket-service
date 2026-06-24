@@ -5,12 +5,15 @@ A:\EY Projects\PMIS Repo\PMIS-Ticket-service\src\main\java\com\pmis\ticket\entit
 A:\EY Projects\PMIS Repo\PMIS-Ticket-service\src\main\java\com\pmis\ticket\web\request\Requests.java
 A:\EY Projects\PMIS Repo\PMIS-Ticket-service\src\main\java\com\pmis\ticket\web\response\SearchResponse.java
 A:\EY Projects\PMIS Repo\PMIS-Ticket-service\src\main\java\com\pmis\ticket\entity\BulkOperationEntity.java
+A:\EY Projects\PMIS Repo\PMIS-Ticket-service\src\main\java\com\pmis\ticket\config\AppConfig.java
 A:\EY Projects\PMIS Repo\PMIS-Ticket-service\src\main\java\com\pmis\ticket\controller\TicketController.java
 A:\EY Projects\PMIS Repo\PMIS-Ticket-service\src\main\java\com\pmis\ticket\web\response\SlaConfigResponse.java
 A:\EY Projects\PMIS Repo\PMIS-Ticket-service\src\main\java\com\pmis\ticket\web\request\SlaConfigRequest.java
 A:\EY Projects\PMIS Repo\PMIS-Ticket-service\src\main\java\com\pmis\ticket\web\request\WorkingCalendarRequest.java
 A:\EY Projects\PMIS Repo\PMIS-Ticket-service\src\main\java\com\pmis\ticket\web\response\TicketResponse.java
+A:\EY Projects\PMIS Repo\PMIS-Ticket-service\src\main\java\com\pmis\ticket\config\NotificationProperties.java
 A:\EY Projects\PMIS Repo\PMIS-Ticket-service\src\main\java\com\pmis\ticket\service\TicketService.java
+A:\EY Projects\PMIS Repo\PMIS-Ticket-service\src\main\java\com\pmis\ticket\service\NotificationService.java
 A:\EY Projects\PMIS Repo\PMIS-Ticket-service\src\main\java\com\pmis\ticket\entity\TicketAttachmentEntity.java
 A:\EY Projects\PMIS Repo\PMIS-Ticket-service\src\main\java\com\pmis\ticket\entity\SlaConfigEntity.java
 A:\EY Projects\PMIS Repo\PMIS-Ticket-service\src\main\java\com\pmis\ticket\web\response\BulkOperationResponse.java

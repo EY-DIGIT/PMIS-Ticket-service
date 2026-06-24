@@ -33,8 +33,8 @@ public class SlaConfigEntity {
     @Column(name = "priority", nullable = false, length = 16)
     private String priority;
 
-    /** Hours until first response is required. */
-    @Column(name = "first_response_hours", nullable = false)
+    /** Hours until first response is required. Nullable — not all legacy configs have this set. */
+    @Column(name = "first_response_hours")
     private Integer firstResponseHours;
 
     /** Hours until the ticket must be fully resolved. */
@@ -44,8 +44,13 @@ public class SlaConfigEntity {
     /**
      * BUSINESS_HOURS – only count Mon–Fri 09:00–18:00 (per working calendar).
      * CALENDAR_HOURS – count 24 × 7 wall-clock hours (CRITICAL tickets).
+     *
+     * columnDefinition includes DEFAULT so Hibernate's ALTER TABLE ADD COLUMN
+     * back-fills existing rows instead of failing with "contains null values".
      */
-    @Column(name = "clock_type", nullable = false, length = 16)
+    @Builder.Default
+    @Column(name = "clock_type", nullable = false,
+            columnDefinition = "varchar(16) default 'BUSINESS_HOURS'")
     private String clockType = "BUSINESS_HOURS";
 
     /** JSON array of role codes notified at 50 % SLA consumption: ["LEAD","MANAGER"] */
@@ -60,6 +65,7 @@ public class SlaConfigEntity {
     @Column(name = "escalation_breach_roles", columnDefinition = "text")
     private String escalationBreachRoles;
 
+    @Builder.Default
     @Column(name = "is_active", nullable = false)
     private Boolean isActive = true;
 
