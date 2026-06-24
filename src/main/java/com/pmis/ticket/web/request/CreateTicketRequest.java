@@ -17,8 +17,11 @@ public class CreateTicketRequest {
         private String title;
         private String description;
         private String projectId;
+        private String projectName;
         private String activityId;
+        private String activityName;
         private String taskId;
+        private String taskName;
         private String parentTicketUuid;
         private String assigneeUuid;
         private String assigneeName;

@@ -43,11 +43,20 @@ public class TicketEntity {
     @Column(name = "project_id", length = 64)
     private String projectId;
 
+    @Column(name = "project_name", length = 256)
+    private String projectName;
+
     @Column(name = "activity_id", length = 64)
     private String activityId;
 
+    @Column(name = "activity_name", length = 256)
+    private String activityName;
+
     @Column(name = "task_id", length = 64)
     private String taskId;
+
+    @Column(name = "task_name", length = 256)
+    private String taskName;
 
     // ---- parent-child (FR-35.4) ----
     @Column(name = "parent_ticket_uuid", length = 64)

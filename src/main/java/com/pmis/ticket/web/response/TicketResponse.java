@@ -19,8 +19,11 @@ public class TicketResponse {
 
     // linkage
     private String projectId;
+    private String projectName;
     private String activityId;
+    private String activityName;
     private String taskId;
+    private String taskName;
 
     // parent-child
     private String parentTicketUuid;
