@@ -107,7 +107,7 @@ public interface TicketRepository extends JpaRepository<TicketEntity, String> {
              AND (:fromDate   IS NULL OR t.createdAt  >= :fromDate)
              AND (:toDate     IS NULL OR t.createdAt  <= :toDate)
            """)
-    Object[] countStats(
+    List<Object[]> countStats(
             @Param("projectId")   String projectId,
             @Param("activityId")  String activityId,
             @Param("taskId")      String taskId,

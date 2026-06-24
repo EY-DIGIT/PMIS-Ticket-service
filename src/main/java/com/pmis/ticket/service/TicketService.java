@@ -291,7 +291,8 @@ public class TicketService {
     // =========================================================
     public TicketCountsResponse getCounts(String projectId, String activityId,
                                            String taskId, Long fromDate, Long toDate) {
-        Object[] row = ticketRepo.countStats(projectId, activityId, taskId, fromDate, toDate);
+        List<Object[]> rows = ticketRepo.countStats(projectId, activityId, taskId, fromDate, toDate);
+        Object[] row = rows.isEmpty() ? new Object[7] : rows.get(0);
         long total       = toLong(row[0]);
         long resolved    = toLong(row[1]);
         long pending     = toLong(row[2]);
