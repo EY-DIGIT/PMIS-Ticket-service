@@ -11,9 +11,6 @@ public class WorkingCalendarRequest {
 
     @Data @Builder @NoArgsConstructor @AllArgsConstructor
     public static class CalendarInput {
-        /** null = global default; set = tenant-specific */
-        private String  tenantId;
-
         private String  name;
 
         /** IANA timezone e.g. "Asia/Kolkata", "UTC" */

@@ -11,7 +11,6 @@ public class CreateTicketRequest {
 
     @Data @Builder @NoArgsConstructor @AllArgsConstructor
     public static class TicketInput {
-        private String tenantId;
         private String category;        // INCIDENT | SERVICE_REQUEST | CHANGE | PROBLEM
         private String subCategory;
         private String priority;        // CRITICAL | HIGH | MEDIUM | LOW

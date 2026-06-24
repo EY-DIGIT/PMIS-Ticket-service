@@ -19,9 +19,6 @@ public class TicketEntity {
     @Column(name = "ticket_number", nullable = false, unique = true, length = 64)
     private String ticketNumber;
 
-    @Column(name = "tenant_id", length = 64)
-    private String tenantId;
-
     // ---- category (FR-36) ----
     @Column(name = "category", nullable = false, length = 32)
     private String category;         // INCIDENT | SERVICE_REQUEST | CHANGE | PROBLEM

@@ -18,7 +18,6 @@ public class TicketCountsResponse {
     private long notAssigned;            // assigneeUuid IS NULL
 
     // ── filters applied (echoed back, null when not supplied) ─────────────────
-    private String tenantId;
     private String projectId;
     private String activityId;
     private String taskId;

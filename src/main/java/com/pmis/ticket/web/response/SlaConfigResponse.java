@@ -7,7 +7,6 @@ import lombok.*;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class SlaConfigResponse {
     private String  uuid;
-    private String  tenantId;              // null = global default
     private String  category;
     private String  priority;
     private Integer firstResponseHours;

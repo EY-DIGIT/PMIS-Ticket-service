@@ -11,9 +11,6 @@ public class SlaConfigRequest {
 
     @Data @Builder @NoArgsConstructor @AllArgsConstructor
     public static class SlaConfigInput {
-        /** null = global default; set = tenant-specific override */
-        private String  tenantId;
-
         /** INCIDENT | SERVICE_REQUEST | CHANGE | PROBLEM */
         private String  category;
 

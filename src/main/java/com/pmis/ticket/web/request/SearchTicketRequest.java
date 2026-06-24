@@ -13,7 +13,6 @@ public class SearchTicketRequest {
 
     @Data @Builder @NoArgsConstructor @AllArgsConstructor
     public static class SearchCriteria {
-        private String tenantId;
         private String projectId;
         private String activityId;
         private String taskId;

@@ -3,15 +3,7 @@ package com.pmis.ticket.entity;
 import jakarta.persistence.*;
 import lombok.*;
 
-/**
- * One row = one SLA rule for a (tenantId, category, priority) combination.
- * tenantId = null  →  global default rule (applies to all tenants without an override).
- * tenantId = "XYZ" →  tenant-specific override; takes priority over the global rule.
- *
- * DB note: enforce uniqueness per (category, priority) for global rows and per
- * (tenant_id, category, priority) for tenant rows using partial unique indexes —
- * JPA @UniqueConstraint cannot express nullable-column partitioning.
- */
+/** One row = one SLA rule for a (category, priority) combination. */
 @Entity
 @Table(name = "pmis_ticket_sla_config")
 @Data @Builder @NoArgsConstructor @AllArgsConstructor
@@ -20,10 +12,6 @@ public class SlaConfigEntity {
     @Id
     @Column(name = "uuid", nullable = false, length = 64)
     private String uuid;
-
-    /** null = global default; non-null = tenant-specific override */
-    @Column(name = "tenant_id", length = 64)
-    private String tenantId;
 
     /** INCIDENT | SERVICE_REQUEST | CHANGE | PROBLEM */
     @Column(name = "category", nullable = false, length = 32)

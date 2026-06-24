@@ -7,7 +7,6 @@ import lombok.*;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class WorkingCalendarResponse {
     private String  uuid;
-    private String  tenantId;        // null = global default
     private String  name;
     private String  timezone;
     private Integer workDayStart;    // hour 0-23

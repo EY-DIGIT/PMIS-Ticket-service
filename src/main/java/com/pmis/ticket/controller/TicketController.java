@@ -73,17 +73,16 @@ public class TicketController {
 
     @GetMapping("/_counts")
     @Operation(summary = "Dashboard counts — total/created, resolved, pending, SLA-breached, assigned, unassigned",
-               description = "All params optional. Scope by tenantId, projectId, activityId or taskId. " +
+               description = "All params optional. Scope by projectId, activityId or taskId. " +
                              "Use fromDate/toDate (epoch ms) to restrict to a time window.")
     public ResponseEntity<TicketCountsResponse> counts(
-            @RequestParam(required = false) String tenantId,
             @RequestParam(required = false) String projectId,
             @RequestParam(required = false) String activityId,
             @RequestParam(required = false) String taskId,
             @RequestParam(required = false) Long fromDate,
             @RequestParam(required = false) Long toDate) {
         return ResponseEntity.ok(
-                ticketService.getCounts(tenantId, projectId, activityId, taskId, fromDate, toDate));
+                ticketService.getCounts(projectId, activityId, taskId, fromDate, toDate));
     }
 
     // ---- BULK (FR-35.5) -----------------------------------------------------

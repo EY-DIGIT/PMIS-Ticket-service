@@ -12,10 +12,6 @@ public class WorkingCalendarEntity {
     @Column(name = "uuid", nullable = false, length = 64)
     private String uuid;
 
-    /** null = global default; set = tenant-specific override */
-    @Column(name = "tenant_id", length = 64)
-    private String tenantId;
-
     @Column(name = "name", nullable = false, length = 128)
     private String name;
 

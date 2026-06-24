@@ -10,11 +10,7 @@ import java.util.Optional;
 @Repository
 public interface WorkingCalendarRepository extends JpaRepository<WorkingCalendarEntity, String> {
 
-    /** Tenant-specific active calendar */
-    Optional<WorkingCalendarEntity> findByTenantIdAndIsActiveTrue(String tenantId);
+    Optional<WorkingCalendarEntity> findFirstByIsActiveTrue();
 
-    /** Global default calendar (tenantId IS NULL) */
-    Optional<WorkingCalendarEntity> findByTenantIdIsNullAndIsActiveTrue();
-
-    List<WorkingCalendarEntity> findByIsActiveTrueOrderByTenantIdAscNameAsc();
+    List<WorkingCalendarEntity> findByIsActiveTrueOrderByNameAsc();
 }

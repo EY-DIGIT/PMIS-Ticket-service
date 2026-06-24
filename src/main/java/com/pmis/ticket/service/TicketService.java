@@ -38,9 +38,8 @@ public class TicketService {
 
         validate(input.getCategory(), input.getPriority(), input.getTitle());
 
-        Optional<SlaConfigEntity> slaOpt = findSlaConfig(
-                input.getCategory(), input.getPriority(), input.getTenantId());
-        WorkingCalendarEntity cal = findWorkingCalendar(input.getTenantId());
+        Optional<SlaConfigEntity> slaOpt = findSlaConfig(input.getCategory(), input.getPriority());
+        WorkingCalendarEntity cal = findWorkingCalendar();
 
         Long firstResponseDeadline = slaOpt
                 .filter(c -> c.getFirstResponseHours() != null)
@@ -53,8 +52,7 @@ public class TicketService {
 
         TicketEntity ticket = TicketEntity.builder()
                 .uuid(UUID.randomUUID().toString())
-                .ticketNumber(nextTicketNumber(input.getTenantId()))
-                .tenantId(input.getTenantId())
+                .ticketNumber(nextTicketNumber())
                 .category(input.getCategory())
                 .subCategory(input.getSubCategory())
                 .priority(input.getPriority())
@@ -221,7 +219,7 @@ public class TicketService {
                 ? c.getStatus().get(0) : null;
 
         List<TicketEntity> results = ticketRepo.search(
-                c.getTenantId(), c.getProjectId(), c.getActivityId(), c.getTaskId(),
+                c.getProjectId(), c.getActivityId(), c.getTaskId(),
                 c.getCategory(), c.getPriority(), statusParam,
                 c.getAssigneeUuid(), c.getSlaBreached(), c.getFromDate(), c.getToDate());
 
@@ -288,10 +286,9 @@ public class TicketService {
     // =========================================================
     // COUNTS dashboard
     // =========================================================
-    public TicketCountsResponse getCounts(String tenantId, String projectId,
-                                           String activityId, String taskId,
-                                           Long fromDate, Long toDate) {
-        Object[] row = ticketRepo.countStats(tenantId, projectId, activityId, taskId, fromDate, toDate);
+    public TicketCountsResponse getCounts(String projectId, String activityId,
+                                           String taskId, Long fromDate, Long toDate) {
+        Object[] row = ticketRepo.countStats(projectId, activityId, taskId, fromDate, toDate);
         long total       = toLong(row[0]);
         long resolved    = toLong(row[1]);
         long pending     = toLong(row[2]);
@@ -306,7 +303,7 @@ public class TicketService {
                 .slaBreached(slaBreached)
                 .firstResponseBreached(frBreached)
                 .assigned(assigned).notAssigned(notAssigned)
-                .tenantId(tenantId).projectId(projectId)
+                .projectId(projectId)
                 .activityId(activityId).taskId(taskId)
                 .fromDate(fromDate).toDate(toDate)
                 .build();
@@ -381,7 +378,6 @@ public class TicketService {
         long now  = System.currentTimeMillis();
         SlaConfigEntity cfg = SlaConfigEntity.builder()
                 .uuid(UUID.randomUUID().toString())
-                .tenantId(input.getTenantId())
                 .category(input.getCategory())
                 .priority(input.getPriority())
                 .firstResponseHours(input.getFirstResponseHours())
@@ -428,7 +424,6 @@ public class TicketService {
         long now  = System.currentTimeMillis();
         WorkingCalendarEntity cal = WorkingCalendarEntity.builder()
                 .uuid(UUID.randomUUID().toString())
-                .tenantId(input.getTenantId())
                 .name(input.getName())
                 .timezone(input.getTimezone() != null ? input.getTimezone() : "UTC")
                 .workDayStart(input.getWorkDayStart() != null ? input.getWorkDayStart() : 9)
@@ -461,7 +456,7 @@ public class TicketService {
     }
 
     public List<WorkingCalendarResponse> listCalendars() {
-        return calendarRepo.findByIsActiveTrueOrderByTenantIdAscNameAsc()
+        return calendarRepo.findByIsActiveTrueOrderByNameAsc()
                 .stream().map(this::toCalendarResponse).toList();
     }
 
@@ -469,29 +464,17 @@ public class TicketService {
     // Private helpers
     // =========================================================
 
-    /** Tenant-first SLA config lookup with global fallback. */
-    private Optional<SlaConfigEntity> findSlaConfig(String category, String priority, String tenantId) {
-        if (tenantId != null) {
-            var override = slaConfigRepo
-                    .findByCategoryAndPriorityAndTenantIdAndIsActiveTrue(category, priority, tenantId);
-            if (override.isPresent()) return override;
-        }
-        return slaConfigRepo.findByCategoryAndPriorityAndTenantIdIsNullAndIsActiveTrue(category, priority);
+    private Optional<SlaConfigEntity> findSlaConfig(String category, String priority) {
+        return slaConfigRepo.findByCategoryAndPriorityAndIsActiveTrue(category, priority);
     }
 
-    /** Tenant-first calendar lookup with global fallback. */
-    private WorkingCalendarEntity findWorkingCalendar(String tenantId) {
-        if (tenantId != null) {
-            var cal = calendarRepo.findByTenantIdAndIsActiveTrue(tenantId);
-            if (cal.isPresent()) return cal.get();
-        }
-        return calendarRepo.findByTenantIdIsNullAndIsActiveTrue().orElse(null);
+    private WorkingCalendarEntity findWorkingCalendar() {
+        return calendarRepo.findFirstByIsActiveTrue().orElse(null);
     }
 
-    /** Recalculate both deadlines from now using the current category/priority/tenantId. */
     private void recalculateDeadlines(TicketEntity ticket, long now) {
-        findSlaConfig(ticket.getCategory(), ticket.getPriority(), ticket.getTenantId()).ifPresent(cfg -> {
-            WorkingCalendarEntity cal = findWorkingCalendar(ticket.getTenantId());
+        findSlaConfig(ticket.getCategory(), ticket.getPriority()).ifPresent(cfg -> {
+            WorkingCalendarEntity cal = findWorkingCalendar();
             ticket.setSlaDeadline(slaCalculator.computeDeadline(now, cfg.getSlaHours(), cfg.getClockType(), cal));
             if (cfg.getFirstResponseHours() != null && ticket.getFirstResponseAt() == null) {
                 ticket.setFirstResponseDeadline(
@@ -513,11 +496,8 @@ public class TicketService {
         }
     }
 
-    private String nextTicketNumber(String tenantId) {
-        Optional<Integer> max = (tenantId != null)
-                ? ticketRepo.findMaxSequenceForTenant(tenantId)
-                : ticketRepo.findGlobalMaxSequence();
-        int seq = max.orElse(0) + 1;
+    private String nextTicketNumber() {
+        int seq = ticketRepo.findMaxSequence().orElse(0) + 1;
         return "TKT-" + java.time.Year.now().getValue() + "-" + String.format("%05d", seq);
     }
 
@@ -617,7 +597,7 @@ public class TicketService {
                 .toList();
 
         return TicketResponse.builder()
-                .uuid(t.getUuid()).ticketNumber(t.getTicketNumber()).tenantId(t.getTenantId())
+                .uuid(t.getUuid()).ticketNumber(t.getTicketNumber())
                 .category(t.getCategory()).subCategory(t.getSubCategory())
                 .priority(t.getPriority()).title(t.getTitle()).description(t.getDescription())
                 .status(t.getStatus())
@@ -649,7 +629,6 @@ public class TicketService {
     private SlaConfigResponse toSlaConfigResponse(SlaConfigEntity e) {
         return SlaConfigResponse.builder()
                 .uuid(e.getUuid())
-                .tenantId(e.getTenantId())
                 .category(e.getCategory())
                 .priority(e.getPriority())
                 .firstResponseHours(e.getFirstResponseHours())
@@ -667,7 +646,6 @@ public class TicketService {
     private WorkingCalendarResponse toCalendarResponse(WorkingCalendarEntity e) {
         return WorkingCalendarResponse.builder()
                 .uuid(e.getUuid())
-                .tenantId(e.getTenantId())
                 .name(e.getName())
                 .timezone(e.getTimezone())
                 .workDayStart(e.getWorkDayStart())

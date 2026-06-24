@@ -19,8 +19,7 @@ public interface TicketRepository extends JpaRepository<TicketEntity, String> {
 
     @Query("""
            SELECT t FROM TicketEntity t
-            WHERE (:tenantId   IS NULL OR t.tenantId   = :tenantId)
-              AND (:projectId  IS NULL OR t.projectId  = :projectId)
+            WHERE (:projectId  IS NULL OR t.projectId  = :projectId)
               AND (:activityId IS NULL OR t.activityId = :activityId)
               AND (:taskId     IS NULL OR t.taskId     = :taskId)
               AND (:category   IS NULL OR t.category   = :category)
@@ -33,7 +32,6 @@ public interface TicketRepository extends JpaRepository<TicketEntity, String> {
             ORDER BY t.createdAt DESC
            """)
     List<TicketEntity> search(
-            @Param("tenantId")    String tenantId,
             @Param("projectId")   String projectId,
             @Param("activityId")  String activityId,
             @Param("taskId")      String taskId,
@@ -81,12 +79,8 @@ public interface TicketRepository extends JpaRepository<TicketEntity, String> {
 
     Optional<TicketEntity> findByTicketNumber(String ticketNumber);
 
-    @Query("SELECT MAX(CAST(SUBSTRING(t.ticketNumber, 10) AS int)) FROM TicketEntity t WHERE t.tenantId = :tenantId")
-    Optional<Integer> findMaxSequenceForTenant(@Param("tenantId") String tenantId);
-
-    /** Fallback used when tenantId is null — sequences across the whole table. */
     @Query("SELECT MAX(CAST(SUBSTRING(t.ticketNumber, 10) AS int)) FROM TicketEntity t")
-    Optional<Integer> findGlobalMaxSequence();
+    Optional<Integer> findMaxSequence();
 
     /**
      * Single-pass aggregate: returns Object[7]
@@ -107,15 +101,13 @@ public interface TicketRepository extends JpaRepository<TicketEntity, String> {
                   SUM(CASE WHEN t.assigneeUuid IS NULL THEN 1 ELSE 0 END),
                   SUM(CASE WHEN t.firstResponseBreached = true THEN 1 ELSE 0 END)
            FROM TicketEntity t
-           WHERE (:tenantId   IS NULL OR t.tenantId   = :tenantId)
-             AND (:projectId  IS NULL OR t.projectId  = :projectId)
+           WHERE (:projectId  IS NULL OR t.projectId  = :projectId)
              AND (:activityId IS NULL OR t.activityId = :activityId)
              AND (:taskId     IS NULL OR t.taskId     = :taskId)
              AND (:fromDate   IS NULL OR t.createdAt  >= :fromDate)
              AND (:toDate     IS NULL OR t.createdAt  <= :toDate)
            """)
     Object[] countStats(
-            @Param("tenantId")    String tenantId,
             @Param("projectId")   String projectId,
             @Param("activityId")  String activityId,
             @Param("taskId")      String taskId,
