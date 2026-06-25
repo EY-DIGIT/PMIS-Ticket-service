@@ -58,23 +58,23 @@ public class TicketServiceImpl implements TicketService {
                 .uuid(UUID.randomUUID().toString())
                 .ticketNumber(nextTicketNumber())
                 .category(input.getCategory())
-                .subCategory(input.getSubCategory())
+                .subCategory(blank2null(input.getSubCategory()))
                 .priority(input.getPriority())
                 .title(input.getTitle())
-                .description(input.getDescription())
+                .description(blank2null(input.getDescription()))
                 .status("OPEN")
-                .projectId(input.getProjectId())
-                .projectName(input.getProjectName())
-                .activityId(input.getActivityId())
-                .activityName(input.getActivityName())
-                .taskId(input.getTaskId())
-                .taskName(input.getTaskName())
-                .parentTicketUuid(input.getParentTicketUuid())
-                .assigneeUuid(input.getAssigneeUuid())
-                .assigneeName(input.getAssigneeName())
-                .assigneeEmail(input.getAssigneeEmail())
-                .baselineRef(input.getBaselineRef())
-                .contractRef(input.getContractRef())
+                .projectId(blank2null(input.getProjectId()))
+                .projectName(blank2null(input.getProjectName()))
+                .activityId(blank2null(input.getActivityId()))
+                .activityName(blank2null(input.getActivityName()))
+                .taskId(blank2null(input.getTaskId()))
+                .taskName(blank2null(input.getTaskName()))
+                .parentTicketUuid(blank2null(input.getParentTicketUuid()))
+                .assigneeUuid(blank2null(input.getAssigneeUuid()))
+                .assigneeName(blank2null(input.getAssigneeName()))
+                .assigneeEmail(blank2null(input.getAssigneeEmail()))
+                .baselineRef(blank2null(input.getBaselineRef()))
+                .contractRef(blank2null(input.getContractRef()))
                 .reportedByUuid(user.getUuid())
                 .reportedByName(user.getUserName())
                 .reportedByEmail(user.getEmail())
@@ -678,5 +678,10 @@ public class TicketServiceImpl implements TicketService {
 
     private long orZero(Long val) {
         return val != null ? val : 0L;
+    }
+
+    /** Returns null when the string is null or blank — prevents empty-string FK violations. */
+    private String blank2null(String val) {
+        return (val == null || val.isBlank()) ? null : val;
     }
 }
