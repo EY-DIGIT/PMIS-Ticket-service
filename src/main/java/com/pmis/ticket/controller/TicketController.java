@@ -15,7 +15,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/tickets")
-@Tag(name = "Ticket & SLA Management", description = "PMIS-FR-35/36/37 — Ticket lifecycle, SLA tracking, bulk operations")
+@Tag(name = "Ticket & SLA Management", description = "Ticket lifecycle, SLA tracking, bulk operations")
 @RequiredArgsConstructor
 public class TicketController {
 
@@ -24,7 +24,7 @@ public class TicketController {
     // ---- CRUD ---------------------------------------------------------------
 
     @PostMapping
-    @Operation(summary = "Create a ticket (FR-35, FR-36, FR-37)")
+    @Operation(summary = "Create a new ticket")
     public ResponseEntity<TicketResponse> create(@RequestBody CreateTicketRequest req) {
         return ResponseEntity.status(201).body(ticketService.create(req));
     }
@@ -129,7 +129,7 @@ public class TicketController {
     // ---- BULK (FR-35.5) -----------------------------------------------------
 
     @PostMapping("/_bulk")
-    @Operation(summary = "Bulk status update / assignment (FR-35.5)")
+    @Operation(summary = "Bulk status update / assignment")
     public ResponseEntity<BulkOperationResponse> bulk(@RequestBody BulkOperationRequest req) {
         return ResponseEntity.accepted().body(ticketService.bulk(req));
     }
