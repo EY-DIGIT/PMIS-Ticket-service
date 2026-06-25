@@ -43,10 +43,51 @@ public class TicketController {
         return ResponseEntity.ok(ticketService.getDetail(uuid));
     }
 
-    // ---- SEARCH -------------------------------------------------------------
+    // ---- LIST (GET with query params) ---------------------------------------
+
+    @GetMapping
+    @Operation(
+        summary = "List tickets with filters and pagination",
+        description = "All params optional. page is 0-based. Default page=0, size=20."
+    )
+    public ResponseEntity<SearchResponse> list(
+            @RequestParam(required = false) String projectId,
+            @RequestParam(required = false) String activityId,
+            @RequestParam(required = false) String taskId,
+            @RequestParam(required = false) String category,
+            @RequestParam(required = false) String priority,
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String assigneeUuid,
+            @RequestParam(required = false) Boolean slaBreached,
+            @RequestParam(required = false) Long fromDate,
+            @RequestParam(required = false) Long toDate,
+            @RequestParam(defaultValue = "0")  int page,
+            @RequestParam(defaultValue = "20") int size) {
+
+        SearchTicketRequest req = SearchTicketRequest.builder()
+                .criteria(SearchTicketRequest.SearchCriteria.builder()
+                        .projectId(projectId)
+                        .activityId(activityId)
+                        .taskId(taskId)
+                        .category(category)
+                        .priority(priority)
+                        .status(status != null ? List.of(status) : null)
+                        .assigneeUuid(assigneeUuid)
+                        .slaBreached(slaBreached)
+                        .fromDate(fromDate)
+                        .toDate(toDate)
+                        .offset(page * size)
+                        .limit(size)
+                        .build())
+                .build();
+
+        return ResponseEntity.ok(ticketService.search(req));
+    }
+
+    // ---- SEARCH (POST with full body) ---------------------------------------
 
     @PostMapping("/_search")
-    @Operation(summary = "Search tickets with filters + pagination")
+    @Operation(summary = "Search tickets with filters + pagination (POST body)")
     public ResponseEntity<SearchResponse> search(@RequestBody SearchTicketRequest req) {
         return ResponseEntity.ok(ticketService.search(req));
     }

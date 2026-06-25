@@ -224,12 +224,21 @@ public class TicketServiceImpl implements TicketService {
                 c.getCategory(), c.getPriority(), statusParam,
                 c.getAssigneeUuid(), c.getSlaBreached(), c.getFromDate(), c.getToDate());
 
-        int offset = c.getOffset() != null ? c.getOffset() : 0;
-        int limit  = c.getLimit()  != null ? c.getLimit()  : 20;
+        int offset     = c.getOffset() != null ? c.getOffset() : 0;
+        int limit      = c.getLimit()  != null ? c.getLimit()  : 20;
+        int total      = results.size();
+        int pageNumber = limit > 0 ? offset / limit : 0;
+        int totalPages = limit > 0 ? (int) Math.ceil((double) total / limit) : 1;
+
         List<TicketEntity> page = results.stream().skip(offset).limit(limit).toList();
 
-        return new SearchResponse(results.size(),
-                page.stream().map(t -> toResponse(t, false)).toList());
+        return SearchResponse.builder()
+                .totalCount(total)
+                .page(pageNumber)
+                .size(limit)
+                .totalPages(totalPages)
+                .tickets(page.stream().map(t -> toResponse(t, false)).toList())
+                .build();
     }
 
     // =========================================================
