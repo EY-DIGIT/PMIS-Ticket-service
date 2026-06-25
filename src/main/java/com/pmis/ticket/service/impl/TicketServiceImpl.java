@@ -5,6 +5,7 @@ import com.pmis.ticket.repository.*;
 import com.pmis.ticket.service.*;
 import com.pmis.ticket.web.request.*;
 import com.pmis.ticket.web.response.*;
+import com.pmis.ticket.service.DocumentService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -27,6 +28,7 @@ public class TicketServiceImpl implements TicketService {
     private final SlaEscalationLogRepository  escalationLogRepo;
     private final SlaCalculatorService        slaCalculator;
     private final NotificationService         notificationService;
+    private final DocumentService             documentService;
 
     // =========================================================
     // CREATE  (FR-35, FR-36, FR-37)
@@ -601,6 +603,10 @@ public class TicketServiceImpl implements TicketService {
                         c.getUuid(), c.getTicketNumber(), c.getTitle(), c.getStatus(), c.getPriority()))
                 .toList();
 
+        List<TicketDocumentResponse> documents = includeComments
+                ? documentService.getDocuments(t.getUuid())
+                : null;
+
         return TicketResponse.builder()
                 .uuid(t.getUuid()).ticketNumber(t.getTicketNumber())
                 .category(t.getCategory()).subCategory(t.getSubCategory())
@@ -625,6 +631,7 @@ public class TicketServiceImpl implements TicketService {
                 .firstResponseRemainingMs(slaCalculator.firstResponseRemainingMs(t, now))
                 .baselineRef(t.getBaselineRef()).contractRef(t.getContractRef())
                 .comments(comments)
+                .documents(documents)
                 .createdAt(t.getCreatedAt()).updatedAt(t.getUpdatedAt())
                 .resolvedAt(t.getResolvedAt()).closedAt(t.getClosedAt())
                 .build();

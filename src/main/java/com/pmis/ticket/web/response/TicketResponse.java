@@ -5,6 +5,8 @@ import lombok.*;
 
 import java.util.List;
 
+// Note: documents field populated only on GET /{uuid} (detail), not on search/list
+
 @Data @Builder @NoArgsConstructor @AllArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class TicketResponse {
@@ -51,7 +53,8 @@ public class TicketResponse {
     private String contractRef;
 
     // comments + attachments (only on detail GET)
-    private List<CommentResponse> comments;
+    private List<CommentResponse>  comments;
+    private List<TicketDocumentResponse> documents;
 
     // audit
     private Long createdAt;
