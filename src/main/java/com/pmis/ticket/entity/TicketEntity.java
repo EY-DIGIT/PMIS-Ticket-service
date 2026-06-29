@@ -20,6 +20,9 @@ public class TicketEntity {
     private String ticketNumber;
 
     // ---- category (FR-36) ----
+    @Column(name = "ticket_type", length = 32)
+    private String ticketType;        // SLA | PAYMENT | MILESTONE | ACTIVITY | TASK
+
     @Column(name = "category", nullable = false, length = 32)
     private String category;         // INCIDENT | SERVICE_REQUEST | CHANGE | PROBLEM
 

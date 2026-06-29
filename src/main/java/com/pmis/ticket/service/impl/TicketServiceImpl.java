@@ -57,6 +57,7 @@ public class TicketServiceImpl implements TicketService {
         TicketEntity ticket = TicketEntity.builder()
                 .uuid(UUID.randomUUID().toString())
                 .ticketNumber(nextTicketNumber())
+                .ticketType(blank2null(input.getTicketType()))
                 .category(input.getCategory())
                 .subCategory(blank2null(input.getSubCategory()))
                 .priority(input.getPriority())
@@ -618,6 +619,7 @@ public class TicketServiceImpl implements TicketService {
 
         return TicketResponse.builder()
                 .uuid(t.getUuid()).ticketNumber(t.getTicketNumber())
+                .ticketType(t.getTicketType())
                 .category(t.getCategory()).subCategory(t.getSubCategory())
                 .priority(t.getPriority()).title(t.getTitle()).description(t.getDescription())
                 .status(t.getStatus())

@@ -12,6 +12,7 @@ import java.util.List;
 public class TicketResponse {
     private String uuid;
     private String ticketNumber;
+    private String ticketType;
     private String category;
     private String subCategory;
     private String priority;
