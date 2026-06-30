@@ -26,9 +26,6 @@ public class TicketEntity {
     @Column(name = "category", nullable = false, length = 32)
     private String category;         // INCIDENT | SERVICE_REQUEST | CHANGE | PROBLEM
 
-    @Column(name = "sub_category", length = 128)
-    private String subCategory;
-
     // ---- priority / core (FR-37) ----
     @Column(name = "priority", nullable = false, length = 16)
     private String priority;         // CRITICAL | HIGH | MEDIUM | LOW

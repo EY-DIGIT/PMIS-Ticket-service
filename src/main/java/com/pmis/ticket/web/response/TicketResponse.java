@@ -14,7 +14,6 @@ public class TicketResponse {
     private String ticketNumber;
     private String ticketType;
     private String category;
-    private String subCategory;
     private String priority;
     private String title;
     private String description;

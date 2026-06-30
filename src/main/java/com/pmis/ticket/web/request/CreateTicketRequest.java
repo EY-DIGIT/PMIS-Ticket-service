@@ -13,7 +13,6 @@ public class CreateTicketRequest {
     public static class TicketInput {
         private String ticketType;      // SLA | PAYMENT | MILESTONE | ACTIVITY | TASK
         private String category;        // INCIDENT | SERVICE_REQUEST | CHANGE | PROBLEM
-        private String subCategory;
         private String priority;        // CRITICAL | HIGH | MEDIUM | LOW
         private String title;
         private String description;
