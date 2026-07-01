@@ -184,7 +184,18 @@ VALUES
     ('esm-p3-l3', 'P3', 'L3', 120, '["pmis-admin@example.com","director@example.com"]',      true, extract(epoch from now())::bigint*1000, extract(epoch from now())::bigint*1000)
 ON CONFLICT ON CONSTRAINT uq_escalation_priority_level DO NOTHING;
 
--- ---- Escalation Log ----
+-- ---- SLA Escalation Log (SLA breach milestones: RISK_50, RISK_75, BREACH, FIRST_RESPONSE) ----
+CREATE TABLE IF NOT EXISTS ticket.pmis_sla_escalation_log (
+    uuid             VARCHAR(64)  NOT NULL PRIMARY KEY,
+    ticket_uuid      VARCHAR(64)  NOT NULL REFERENCES ticket.pmis_ticket(uuid),
+    escalation_level VARCHAR(32)  NOT NULL,   -- RISK_50 | RISK_75 | BREACH | FIRST_RESPONSE | POST_BREACH_24H
+    notified_roles   TEXT,                    -- JSON array e.g. ["MANAGER","LEAD"]
+    escalated_at     BIGINT       NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_escalation_ticket_level ON ticket.pmis_sla_escalation_log(ticket_uuid, escalation_level);
+
+-- ---- Ticket Escalation Log (matrix-based escalation: L1, L2, L3 per priority) ----
 CREATE TABLE IF NOT EXISTS ticket.pmis_ticket_escalation_log (
     uuid          VARCHAR(64)  NOT NULL PRIMARY KEY,
     ticket_uuid   VARCHAR(64)  NOT NULL REFERENCES ticket.pmis_ticket(uuid),
