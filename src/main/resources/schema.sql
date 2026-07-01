@@ -1,8 +1,9 @@
 -- ============================================================
--- PMIS Ticket Management
--- Run once against the pmis database (schema: ticket)
+-- PMIS Ticket Management — Full Schema
+-- Schema: ticket
 -- ============================================================
 
+-- ---- Ticket ----
 CREATE TABLE IF NOT EXISTS ticket.pmis_ticket (
     uuid                    VARCHAR(64)     NOT NULL PRIMARY KEY,
     ticket_number           VARCHAR(64)     NOT NULL UNIQUE,
