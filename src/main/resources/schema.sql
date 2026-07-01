@@ -81,9 +81,11 @@ ON CONFLICT ON CONSTRAINT uq_sla_category_priority DO NOTHING;
 CREATE TABLE IF NOT EXISTS ticket.pmis_sla_working_calendar (
     uuid            VARCHAR(64)  NOT NULL PRIMARY KEY,
     name            VARCHAR(128) NOT NULL,
-    work_start_hour INT          NOT NULL DEFAULT 9,
-    work_end_hour   INT          NOT NULL DEFAULT 18,
-    work_days       TEXT,
+    timezone        VARCHAR(64)  NOT NULL DEFAULT 'Asia/Kolkata',
+    work_day_start  INT          NOT NULL DEFAULT 9,
+    work_day_end    INT          NOT NULL DEFAULT 18,
+    work_days       VARCHAR(128) NOT NULL DEFAULT 'MONDAY,TUESDAY,WEDNESDAY,THURSDAY,FRIDAY',
+    holidays        TEXT,                           -- JSON array e.g. ["2026-01-26","2026-08-15","2026-10-02"]
     is_active       BOOLEAN      NOT NULL DEFAULT TRUE,
     created_at      BIGINT       NOT NULL,
     updated_at      BIGINT
