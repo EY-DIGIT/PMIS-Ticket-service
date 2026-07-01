@@ -56,25 +56,13 @@ CREATE TABLE IF NOT EXISTS pmis_ticket_sla_config (
     CONSTRAINT uq_sla_category_priority UNIQUE (category, priority)
 );
 
--- Seed SLA rules
-INSERT INTO pmis_ticket_sla_config (uuid, category, priority, sla_hours, escalation_hours, created_at)
+-- Insert P1 / P2 / P3 for PMIS Support
+INSERT INTO ticket.pmis_ticket_sla_config
+    (uuid, category, priority, sla_hours, first_response_hours, clock_type, is_active, created_at)
 VALUES
-    (gen_random_uuid(),'INCIDENT',        'CRITICAL',  4,   1,  extract(epoch from now())::bigint*1000),
-    (gen_random_uuid(),'INCIDENT',        'HIGH',      8,   2,  extract(epoch from now())::bigint*1000),
-    (gen_random_uuid(),'INCIDENT',        'MEDIUM',    24,  4,  extract(epoch from now())::bigint*1000),
-    (gen_random_uuid(),'INCIDENT',        'LOW',       72,  8,  extract(epoch from now())::bigint*1000),
-    (gen_random_uuid(),'SERVICE_REQUEST', 'CRITICAL',  8,   2,  extract(epoch from now())::bigint*1000),
-    (gen_random_uuid(),'SERVICE_REQUEST', 'HIGH',      24,  4,  extract(epoch from now())::bigint*1000),
-    (gen_random_uuid(),'SERVICE_REQUEST', 'MEDIUM',    48,  8,  extract(epoch from now())::bigint*1000),
-    (gen_random_uuid(),'SERVICE_REQUEST', 'LOW',       120, 24, extract(epoch from now())::bigint*1000),
-    (gen_random_uuid(),'CHANGE',          'CRITICAL',  24,  4,  extract(epoch from now())::bigint*1000),
-    (gen_random_uuid(),'CHANGE',          'HIGH',      48,  8,  extract(epoch from now())::bigint*1000),
-    (gen_random_uuid(),'CHANGE',          'MEDIUM',    96,  24, extract(epoch from now())::bigint*1000),
-    (gen_random_uuid(),'CHANGE',          'LOW',       168, 48, extract(epoch from now())::bigint*1000),
-    (gen_random_uuid(),'PROBLEM',         'CRITICAL',  8,   2,  extract(epoch from now())::bigint*1000),
-    (gen_random_uuid(),'PROBLEM',         'HIGH',      24,  4,  extract(epoch from now())::bigint*1000),
-    (gen_random_uuid(),'PROBLEM',         'MEDIUM',    72,  8,  extract(epoch from now())::bigint*1000),
-    (gen_random_uuid(),'PROBLEM',         'LOW',       168, 24, extract(epoch from now())::bigint*1000)
+    (gen_random_uuid(), 'PMIS Support', 'P1',  24,  2,  'CALENDAR_HOURS',  true, extract(epoch from now())::bigint * 1000),
+    (gen_random_uuid(), 'PMIS Support', 'P2',  72,  8,  'CALENDAR_HOURS',  true, extract(epoch from now())::bigint * 1000),
+    (gen_random_uuid(), 'PMIS Support', 'P3', 120, 24,  'BUSINESS_HOURS',  true, extract(epoch from now())::bigint * 1000)
 ON CONFLICT ON CONSTRAINT uq_sla_category_priority DO NOTHING;
 
 -- ---- Comments ----

@@ -13,11 +13,11 @@ public class SlaConfigEntity {
     @Column(name = "uuid", nullable = false, length = 64)
     private String uuid;
 
-    /** INCIDENT | SERVICE_REQUEST | CHANGE | PROBLEM */
+    /** PMIS Support */
     @Column(name = "category", nullable = false, length = 32)
     private String category;
 
-    /** CRITICAL | HIGH | MEDIUM | LOW */
+    /** P1 | P2 | P3 */
     @Column(name = "priority", nullable = false, length = 16)
     private String priority;
 

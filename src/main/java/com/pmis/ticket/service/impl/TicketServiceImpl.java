@@ -629,12 +629,12 @@ public class TicketServiceImpl implements TicketService {
     }
 
     private void validate(String category, String priority, String title) {
-        var validCategories = Set.of("INCIDENT", "SERVICE_REQUEST", "CHANGE", "PROBLEM");
-        var validPriorities = Set.of("CRITICAL", "HIGH", "MEDIUM", "LOW");
+        var validCategories = Set.of("PMIS Support");
+        var validPriorities = Set.of("P1", "P2", "P3");
         if (!validCategories.contains(category))
-            throw new IllegalArgumentException("Invalid category: " + category);
+            throw new IllegalArgumentException("Invalid category: " + category + ". Valid: " + validCategories);
         if (!validPriorities.contains(priority))
-            throw new IllegalArgumentException("Invalid priority: " + priority);
+            throw new IllegalArgumentException("Invalid priority: " + priority + ". Valid: P1, P2, P3");
         if (title == null || title.isBlank())
             throw new IllegalArgumentException("Title is required");
     }
