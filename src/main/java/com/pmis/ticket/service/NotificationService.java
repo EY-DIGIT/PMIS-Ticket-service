@@ -8,9 +8,17 @@ public interface NotificationService {
 
     void notifyTicketAssigned(TicketEntity ticket);
 
-    void notifyStatusChanged(TicketEntity ticket, String previousStatus);
+    void notifyTicketSentBack(TicketEntity ticket, String reason);
+
+    void notifyTicketResubmitted(TicketEntity ticket);
 
     void notifyTicketResolved(TicketEntity ticket);
+
+    void notifyTicketReopened(TicketEntity ticket);
+
+    void notifyTicketClosed(TicketEntity ticket);
+
+    void notifyTicketCancelled(TicketEntity ticket);
 
     void notifySlaEscalation(TicketEntity ticket, String escalationLevel);
 }

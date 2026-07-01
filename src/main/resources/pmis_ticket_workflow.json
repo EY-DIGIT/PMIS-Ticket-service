@@ -1,0 +1,76 @@
+{
+  "businessService": "PMIS-TICKET",
+  "states": [
+    {
+      "state": null,
+      "isStartState": true,
+      "isTerminateState": false,
+      "actions": [
+        { "action": "CREATE", "nextState": "OPEN", "roles": ["PMIS_ADMIN"] }
+      ]
+    },
+    {
+      "state": "OPEN",
+      "isTerminateState": false,
+      "actions": [
+        { "action": "ASSIGN",  "nextState": "ASSIGNED",  "roles": ["PMIS_ADMIN"] },
+        { "action": "CANCEL",  "nextState": "CANCELLED", "roles": ["PMIS_ADMIN"] }
+      ]
+    },
+    {
+      "state": "ASSIGNED",
+      "isTerminateState": false,
+      "actions": [
+        { "action": "START_PROGRESS", "nextState": "IN_PROGRESS", "roles": ["PMIS_SUPPORT"] },
+        { "action": "SEND_BACK",      "nextState": "SENT_BACK",   "roles": ["PMIS_SUPPORT"] },
+        { "action": "REASSIGN",       "nextState": "ASSIGNED",    "roles": ["PMIS_ADMIN"]   },
+        { "action": "CANCEL",         "nextState": "CANCELLED",   "roles": ["PMIS_ADMIN"]   }
+      ]
+    },
+    {
+      "state": "IN_PROGRESS",
+      "isTerminateState": false,
+      "actions": [
+        { "action": "RESOLVE",   "nextState": "RESOLVED",    "roles": ["PMIS_SUPPORT"] },
+        { "action": "SEND_BACK", "nextState": "SENT_BACK",   "roles": ["PMIS_SUPPORT"] },
+        { "action": "PENDING",   "nextState": "PENDING",     "roles": ["PMIS_SUPPORT"] },
+        { "action": "CANCEL",    "nextState": "CANCELLED",   "roles": ["PMIS_ADMIN"]   }
+      ]
+    },
+    {
+      "state": "PENDING",
+      "isTerminateState": false,
+      "actions": [
+        { "action": "RESUME",    "nextState": "IN_PROGRESS", "roles": ["PMIS_SUPPORT"] },
+        { "action": "SEND_BACK", "nextState": "SENT_BACK",   "roles": ["PMIS_SUPPORT"] },
+        { "action": "CANCEL",    "nextState": "CANCELLED",   "roles": ["PMIS_ADMIN"]   }
+      ]
+    },
+    {
+      "state": "SENT_BACK",
+      "isTerminateState": false,
+      "actions": [
+        { "action": "RESUBMIT", "nextState": "ASSIGNED",  "roles": ["PMIS_ADMIN"] },
+        { "action": "CANCEL",   "nextState": "CANCELLED", "roles": ["PMIS_ADMIN"] }
+      ]
+    },
+    {
+      "state": "RESOLVED",
+      "isTerminateState": false,
+      "actions": [
+        { "action": "CLOSE",  "nextState": "CLOSED",   "roles": ["PMIS_ADMIN"] },
+        { "action": "REOPEN", "nextState": "ASSIGNED", "roles": ["PMIS_ADMIN"] }
+      ]
+    },
+    {
+      "state": "CLOSED",
+      "isTerminateState": true,
+      "actions": []
+    },
+    {
+      "state": "CANCELLED",
+      "isTerminateState": true,
+      "actions": []
+    }
+  ]
+}

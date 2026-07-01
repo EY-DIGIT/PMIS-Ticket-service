@@ -29,6 +29,7 @@ public class TicketServiceImpl implements TicketService {
     private final SlaCalculatorService        slaCalculator;
     private final NotificationService         notificationService;
     private final DocumentService             documentService;
+    private final WorkflowService             workflowService;
 
     // =========================================================
     // CREATE  (FR-35, FR-36, FR-37)
@@ -106,20 +107,19 @@ public class TicketServiceImpl implements TicketService {
     }
 
     // =========================================================
-    // UPDATE
+    // UPDATE  — workflow-driven
     // =========================================================
     @Override
     @Transactional
     public TicketResponse update(String uuid, UpdateTicketRequest req) {
         TicketEntity ticket = ticketRepo.findById(uuid)
                 .orElseThrow(() -> new NoSuchElementException("Ticket not found: " + uuid));
-        var update = req.getTicket();
-        var user   = req.getRequestInfo().getUserInfo();
-        long now   = System.currentTimeMillis();
 
-        String previousStatus   = ticket.getStatus();
-        String previousAssignee = ticket.getAssigneeUuid();
+        var  update = req.getTicket();
+        var  user   = req.getRequestInfo().getUserInfo();
+        long now    = System.currentTimeMillis();
 
+        // ---- optional field edits (allowed on any non-terminal state) --------
         if (update.getTitle()       != null) ticket.setTitle(update.getTitle());
         if (update.getDescription() != null) ticket.setDescription(update.getDescription());
         if (update.getBaselineRef() != null) ticket.setBaselineRef(update.getBaselineRef());
@@ -132,61 +132,36 @@ public class TicketServiceImpl implements TicketService {
                     "Priority changed to " + update.getPriority() + " — SLA deadlines recalculated.", user, now);
         }
 
-        if (update.getStatus() != null && !update.getStatus().equals(ticket.getStatus())) {
-            String newStatus = update.getStatus();
+        // ---- workflow action -------------------------------------------------
+        if (update.getAction() != null) {
+            List<String> userRoles = extractRoles(user);
+            var wfAction = workflowService.validateAndGetAction(ticket.getStatus(), update.getAction(), userRoles);
 
-            if ("PENDING".equals(newStatus) && ticket.getSlaPausedAt() == null) {
-                ticket.setSlaPausedAt(now);
-                ticket.setSlaStatus("PAUSED");
-                saveSystemComment(ticket.getUuid(),
-                        "SLA clock paused — ticket is waiting for customer response.", user, now);
-            }
+            String previousStatus   = ticket.getStatus();
+            String previousAssignee = ticket.getAssigneeUuid();
+            String nextStatus       = wfAction.getNextState();
 
-            if ("PENDING".equals(previousStatus) && !"PENDING".equals(newStatus)
-                    && ticket.getSlaPausedAt() != null) {
-                long pausedDuration = now - ticket.getSlaPausedAt();
-                ticket.setTotalPausedMs(orZero(ticket.getTotalPausedMs()) + pausedDuration);
-                if (ticket.getSlaDeadline() != null)
-                    ticket.setSlaDeadline(ticket.getSlaDeadline() + pausedDuration);
-                if (ticket.getFirstResponseDeadline() != null && ticket.getFirstResponseAt() == null)
-                    ticket.setFirstResponseDeadline(ticket.getFirstResponseDeadline() + pausedDuration);
-                ticket.setSlaPausedAt(null);
-                saveSystemComment(ticket.getUuid(),
-                        "SLA clock resumed after " + (pausedDuration / 60_000) + " min on hold. "
-                                + "Deadlines extended accordingly.", user, now);
-            }
+            applyWorkflowAction(ticket, update, wfAction, previousStatus, previousAssignee, user, now);
 
-            ticket.setStatus(newStatus);
-            if ("RESOLVED".equals(newStatus)) ticket.setResolvedAt(now);
-            if ("CLOSED".equals(newStatus))   ticket.setClosedAt(now);
+            ticket.setStatus(nextStatus);
 
+            // terminal timestamps
+            if ("RESOLVED".equals(nextStatus))  ticket.setResolvedAt(now);
+            if ("CLOSED".equals(nextStatus))    ticket.setClosedAt(now);
+
+            // SLA clock management
+            handleSlaClock(ticket, previousStatus, nextStatus, now, user);
+
+            // save audit comment
             saveComment(ticket.getUuid(), "STATUS_CHANGE",
-                    update.getComment(), previousStatus, newStatus,
-                    null, null, user, now);
-            notificationService.notifyStatusChanged(ticket, previousStatus);
-            if ("RESOLVED".equals(newStatus)) {
-                notificationService.notifyTicketResolved(ticket);
-            }
+                    update.getComment(), previousStatus, nextStatus, null, null, user, now);
+
+            // notifications per action
+            dispatchNotification(update.getAction(), ticket, update.getComment());
         }
 
-        if (update.getAssigneeUuid() != null && !update.getAssigneeUuid().equals(ticket.getAssigneeUuid())) {
-            ticket.setAssigneeUuid(update.getAssigneeUuid());
-            ticket.setAssigneeName(update.getAssigneeName());
-            ticket.setAssigneeEmail(update.getAssigneeEmail());
-
-            if (ticket.getFirstResponseAt() == null) {
-                ticket.setFirstResponseAt(now);
-                saveSystemComment(ticket.getUuid(),
-                        "First response recorded — assigned to " + update.getAssigneeName(), user, now);
-            }
-
-            saveComment(ticket.getUuid(), "ASSIGNMENT",
-                    update.getComment(), null, null,
-                    previousAssignee, update.getAssigneeUuid(), user, now);
-            notificationService.notifyTicketAssigned(ticket);
-        }
-
-        if (update.getComment() != null && update.getStatus() == null && update.getAssigneeUuid() == null) {
+        // ---- plain comment (no action) --------------------------------------
+        if (update.getAction() == null && update.getComment() != null) {
             saveComment(ticket.getUuid(), "COMMENT",
                     update.getComment(), null, null, null, null, user, now);
         }
@@ -198,6 +173,87 @@ public class TicketServiceImpl implements TicketService {
         ticket.setUpdatedAt(now);
         ticketRepo.save(ticket);
         return toResponse(ticket, false);
+    }
+
+    /** Handles assignee changes and first-response recording based on the action. */
+    private void applyWorkflowAction(TicketEntity ticket, UpdateTicketRequest.TicketUpdate update,
+                                     com.pmis.ticket.workflow.WorkflowActionDef wfAction,
+                                     String previousStatus, String previousAssignee,
+                                     RequestInfo.UserInfo user, long now) {
+
+        String action = update.getAction();
+
+        // ASSIGN / REASSIGN — must provide new assignee
+        if ("ASSIGN".equals(action) || "REASSIGN".equals(action)) {
+            if (update.getAssigneeUuid() == null || update.getAssigneeUuid().isBlank())
+                throw new IllegalArgumentException("assigneeUuid is required for action " + action);
+
+            ticket.setAssigneeUuid(update.getAssigneeUuid());
+            ticket.setAssigneeName(update.getAssigneeName());
+            ticket.setAssigneeEmail(update.getAssigneeEmail());
+
+            if (ticket.getFirstResponseAt() == null) {
+                ticket.setFirstResponseAt(now);
+                saveSystemComment(ticket.getUuid(),
+                        "First response recorded — assigned to " + update.getAssigneeName(), user, now);
+            }
+            saveComment(ticket.getUuid(), "ASSIGNMENT", update.getComment(),
+                    null, null, previousAssignee, update.getAssigneeUuid(), user, now);
+        }
+
+        // SEND_BACK — comment (reason) is mandatory
+        if ("SEND_BACK".equals(action) && (update.getComment() == null || update.getComment().isBlank()))
+            throw new IllegalArgumentException("A reason (comment) is required when sending back a ticket.");
+
+        // REOPEN — keep same assignee (no change needed); reset resolvedAt
+        if ("REOPEN".equals(action)) {
+            ticket.setResolvedAt(null);
+            saveSystemComment(ticket.getUuid(), "Ticket reopened — reassigned to " + ticket.getAssigneeName(), user, now);
+        }
+    }
+
+    /** Pauses / resumes SLA clock on PENDING transitions. */
+    private void handleSlaClock(TicketEntity ticket, String from, String to,
+                                long now, RequestInfo.UserInfo user) {
+        if ("PENDING".equals(to) && ticket.getSlaPausedAt() == null) {
+            ticket.setSlaPausedAt(now);
+            ticket.setSlaStatus("PAUSED");
+            saveSystemComment(ticket.getUuid(), "SLA clock paused — awaiting requester response.", user, now);
+        }
+        if ("PENDING".equals(from) && !"PENDING".equals(to) && ticket.getSlaPausedAt() != null) {
+            long paused = now - ticket.getSlaPausedAt();
+            ticket.setTotalPausedMs(orZero(ticket.getTotalPausedMs()) + paused);
+            if (ticket.getSlaDeadline() != null)
+                ticket.setSlaDeadline(ticket.getSlaDeadline() + paused);
+            if (ticket.getFirstResponseDeadline() != null && ticket.getFirstResponseAt() == null)
+                ticket.setFirstResponseDeadline(ticket.getFirstResponseDeadline() + paused);
+            ticket.setSlaPausedAt(null);
+            saveSystemComment(ticket.getUuid(),
+                    "SLA clock resumed after " + (paused / 60_000) + " min on hold.", user, now);
+        }
+    }
+
+    /** Sends the right notification for each workflow action. */
+    private void dispatchNotification(String action, TicketEntity ticket, String comment) {
+        switch (action) {
+            case "ASSIGN", "REASSIGN"   -> notificationService.notifyTicketAssigned(ticket);
+            case "SEND_BACK"            -> notificationService.notifyTicketSentBack(ticket, comment);
+            case "RESUBMIT"             -> notificationService.notifyTicketResubmitted(ticket);
+            case "RESOLVE"              -> notificationService.notifyTicketResolved(ticket);
+            case "REOPEN"               -> notificationService.notifyTicketReopened(ticket);
+            case "CLOSE"                -> notificationService.notifyTicketClosed(ticket);
+            case "CANCEL"               -> notificationService.notifyTicketCancelled(ticket);
+            default                     -> { /* START_PROGRESS, PENDING, RESUME — no email */ }
+        }
+    }
+
+    /** Extracts role codes from userInfo. */
+    private List<String> extractRoles(RequestInfo.UserInfo user) {
+        if (user == null || user.getRoles() == null) return List.of();
+        return user.getRoles().stream()
+                .map(RequestInfo.RoleInfo::getCode)
+                .filter(Objects::nonNull)
+                .toList();
     }
 
     // =========================================================

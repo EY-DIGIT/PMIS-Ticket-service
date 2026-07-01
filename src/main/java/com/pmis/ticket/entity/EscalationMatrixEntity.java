@@ -1,0 +1,42 @@
+package com.pmis.ticket.entity;
+
+import jakarta.persistence.*;
+import lombok.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+
+import java.util.List;
+
+@Entity
+@Table(name = "pmis_escalation_matrix",
+       uniqueConstraints = @UniqueConstraint(columnNames = {"priority", "level"}))
+@Data @Builder @NoArgsConstructor @AllArgsConstructor
+public class EscalationMatrixEntity {
+
+    @Id
+    @Column(name = "uuid", nullable = false, length = 64)
+    private String uuid;
+
+    @Column(name = "priority", nullable = false, length = 8)
+    private String priority;        // P1 | P2 | P3
+
+    @Column(name = "level", nullable = false, length = 4)
+    private String level;           // L1 | L2 | L3
+
+    @Column(name = "trigger_hours", nullable = false)
+    private Integer triggerHours;   // calendar hours after ticket creation
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "emails", columnDefinition = "text", nullable = false)
+    private List<String> emails;
+
+    @Builder.Default
+    @Column(name = "is_active", nullable = false)
+    private Boolean isActive = true;
+
+    @Column(name = "created_at", nullable = false)
+    private Long createdAt;
+
+    @Column(name = "updated_at", nullable = false)
+    private Long updatedAt;
+}
