@@ -37,9 +37,13 @@ public class TicketServiceImpl implements TicketService {
     @Override
     @Transactional
     public TicketResponse create(CreateTicketRequest req) {
-        var input = req.getTicket();
-        var user  = req.getRequestInfo().getUserInfo();
-        long now  = System.currentTimeMillis();
+        var input     = req.getTicket();
+        var user      = req.getRequestInfo().getUserInfo();
+        long now      = System.currentTimeMillis();
+        List<String> userRoles = extractRoles(user);
+
+        // Enforce workflow: only roles allowed for CREATE action (null state → OPEN) can raise tickets
+        workflowService.validateAndGetAction(null, "CREATE", userRoles);
 
         validate(input.getCategory(), input.getPriority(), input.getTitle());
 
