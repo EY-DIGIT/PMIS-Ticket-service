@@ -187,8 +187,23 @@ public class TicketServiceImpl implements TicketService {
 
         String action = update.getAction();
 
-        // ASSIGN / REASSIGN — must provide new assignee
-        if ("ASSIGN".equals(action) || "REASSIGN".equals(action)) {
+        // ASSIGN — self pick-up: the acting PMIS_SUPPORT user always assigns the ticket to themselves
+        if ("ASSIGN".equals(action)) {
+            ticket.setAssigneeUuid(user.getUuid());
+            ticket.setAssigneeName(user.getUserName());
+            ticket.setAssigneeEmail(user.getEmail());
+
+            if (ticket.getFirstResponseAt() == null) {
+                ticket.setFirstResponseAt(now);
+                saveSystemComment(ticket.getUuid(),
+                        "First response recorded — assigned to " + user.getUserName(), user, now);
+            }
+            saveComment(ticket.getUuid(), "ASSIGNMENT", update.getComment(),
+                    null, null, previousAssignee, user.getUuid(), user, now);
+        }
+
+        // REASSIGN — explicit target assignee required
+        if ("REASSIGN".equals(action)) {
             if (update.getAssigneeUuid() == null || update.getAssigneeUuid().isBlank())
                 throw new IllegalArgumentException("assigneeUuid is required for action " + action);
 

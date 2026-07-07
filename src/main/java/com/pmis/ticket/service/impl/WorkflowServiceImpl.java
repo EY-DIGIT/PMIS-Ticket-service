@@ -111,7 +111,8 @@ public class WorkflowServiceImpl implements WorkflowService {
                 .filter(a -> a.getAction().equals(action))
                 .findFirst()
                 .map(a -> {
-                    boolean hasRole = userRoles.stream().anyMatch(r -> a.getRoles().contains(r));
+                    boolean hasRole = a.getRoles().contains("*")
+                            || userRoles.stream().anyMatch(r -> a.getRoles().contains(r));
                     if (!hasRole)
                         throw new IllegalArgumentException(
                                 "Action '" + action + "' not allowed for your role. Required: " + a.getRoles());
@@ -128,7 +129,8 @@ public class WorkflowServiceImpl implements WorkflowService {
         WorkflowStateDef stateDef = stateMap.get(stateKey);
         if (stateDef == null || stateDef.isTerminateState()) return List.of();
         return stateDef.getActions().stream()
-                .filter(a -> userRoles.stream().anyMatch(r -> a.getRoles().contains(r)))
+                .filter(a -> a.getRoles().contains("*")
+                        || userRoles.stream().anyMatch(r -> a.getRoles().contains(r)))
                 .toList();
     }
 
