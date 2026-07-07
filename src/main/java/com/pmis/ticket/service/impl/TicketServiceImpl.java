@@ -2,6 +2,8 @@ package com.pmis.ticket.service.impl;
 
 import com.pmis.ticket.entity.*;
 import com.pmis.ticket.repository.*;
+import com.pmis.ticket.security.AuthContext;
+import com.pmis.ticket.security.AuthenticatedUser;
 import com.pmis.ticket.service.*;
 import com.pmis.ticket.web.request.*;
 import com.pmis.ticket.web.response.*;
@@ -38,7 +40,7 @@ public class TicketServiceImpl implements TicketService {
     @Transactional
     public TicketResponse create(CreateTicketRequest req) {
         var input     = req.getTicket();
-        var user      = req.getRequestInfo().getUserInfo();
+        var user      = resolveUser(req.getRequestInfo().getUserInfo());
         long now      = System.currentTimeMillis();
         List<String> userRoles = extractRoles(user);
 
@@ -120,7 +122,7 @@ public class TicketServiceImpl implements TicketService {
                 .orElseThrow(() -> new NoSuchElementException("Ticket not found: " + uuid));
 
         var  update = req.getTicket();
-        var  user   = req.getRequestInfo().getUserInfo();
+        var  user   = resolveUser(req.getRequestInfo().getUserInfo());
         long now    = System.currentTimeMillis();
 
         // ---- optional field edits (allowed on any non-terminal state) --------
@@ -266,6 +268,22 @@ public class TicketServiceImpl implements TicketService {
         }
     }
 
+    /**
+     * Overrides the identity fields (uuid, userName, email) with the caller authenticated via
+     * the introspect token, ignoring whatever the client sent for them. Roles still come from
+     * the request body since the introspect endpoint does not return role codes.
+     */
+    private RequestInfo.UserInfo resolveUser(RequestInfo.UserInfo clientUser) {
+        AuthenticatedUser auth = AuthContext.get();
+        if (auth == null) return clientUser;
+        return RequestInfo.UserInfo.builder()
+                .uuid(auth.userId())
+                .userName(auth.username())
+                .email(auth.email())
+                .roles(clientUser != null ? clientUser.getRoles() : null)
+                .build();
+    }
+
     /** Extracts role codes from userInfo. */
     private List<String> extractRoles(RequestInfo.UserInfo user) {
         if (user == null || user.getRoles() == null) return List.of();
@@ -323,7 +341,7 @@ public class TicketServiceImpl implements TicketService {
     @Transactional
     public BulkOperationResponse bulk(BulkOperationRequest req) {
         var op   = req.getOperation();
-        var user = req.getRequestInfo().getUserInfo();
+        var user = resolveUser(req.getRequestInfo().getUserInfo());
         long now = System.currentTimeMillis();
 
         BulkOperationEntity entity = BulkOperationEntity.builder()

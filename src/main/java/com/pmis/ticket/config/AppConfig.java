@@ -13,7 +13,7 @@ import java.time.Duration;
 
 @Configuration
 @EnableAsync
-@EnableConfigurationProperties(NotificationProperties.class)
+@EnableConfigurationProperties({NotificationProperties.class, AuthProperties.class})
 public class AppConfig {
 
     @Bean
@@ -50,5 +50,20 @@ public class AppConfig {
         }
 
         return builder.build();
+    }
+
+    /** RestClient wired to the user-service introspect endpoint. */
+    @Bean
+    public RestClient authRestClient(AuthProperties props) {
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(Duration.ofMillis(props.getConnectTimeoutMs()));
+        factory.setReadTimeout(Duration.ofMillis(props.getReadTimeoutMs()));
+
+        return RestClient.builder()
+                .requestFactory(factory)
+                .baseUrl(props.getIntrospectUrl())
+                .defaultHeader("Content-Type", "application/json")
+                .defaultHeader("Accept", "application/json")
+                .build();
     }
 }
