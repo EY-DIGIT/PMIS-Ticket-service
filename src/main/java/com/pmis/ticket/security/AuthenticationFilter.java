@@ -12,6 +12,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 
@@ -67,10 +68,13 @@ public class AuthenticationFilter extends OncePerRequestFilter {
     private void reject(HttpServletResponse response, String message) throws IOException {
         response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-        response.getWriter().write(objectMapper.writeValueAsString(Map.of(
-                "data", (Object) null,
-                "message", (Object) null,
-                "error", message,
-                "status", 401)));
+
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("data", null);
+        body.put("message", null);
+        body.put("error", message);
+        body.put("status", 401);
+
+        response.getWriter().write(objectMapper.writeValueAsString(body));
     }
 }
