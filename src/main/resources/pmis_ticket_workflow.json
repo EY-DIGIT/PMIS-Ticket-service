@@ -9,7 +9,7 @@
         {
           "action": "CREATE",
           "nextState": "OPEN",
-          "roles": ["*"]
+          "roles": ["super_admin", "org_admin", "admin", "project_admin", "division_approver", "division_owner", "director_admin"]
         }
       ]
     },
@@ -20,17 +20,17 @@
         {
           "action": "ASSIGN",
           "nextState": "ASSIGNED",
-          "roles": ["PMIS_SUPPORT"]
+          "roles": ["pmis_support"]
         },
         {
           "action": "SEND_BACK",
           "nextState": "SENT_BACK",
-          "roles": ["PMIS_SUPPORT"]
+          "roles": ["pmis_support"]
         },
         {
           "action": "CANCEL",
           "nextState": "CANCELLED",
-          "roles": ["*"]
+          "roles": ["super_admin", "org_admin", "admin", "project_admin", "division_approver", "division_owner", "director_admin"]
         }
       ]
     },
@@ -41,22 +41,22 @@
         {
           "action": "START_PROGRESS",
           "nextState": "IN_PROGRESS",
-          "roles": ["PMIS_SUPPORT"]
+          "roles": ["pmis_support"]
         },
         {
           "action": "REASSIGN",
           "nextState": "ASSIGNED",
-          "roles": ["PMIS_SUPPORT"]
+          "roles": ["pmis_support"]
         },
         {
           "action": "SEND_BACK",
           "nextState": "SENT_BACK",
-          "roles": ["PMIS_SUPPORT"]
+          "roles": ["pmis_support"]
         },
         {
           "action": "CANCEL",
           "nextState": "CANCELLED",
-          "roles": ["*"]
+          "roles": ["super_admin", "org_admin", "admin", "project_admin", "division_approver", "division_owner", "director_admin"]
         }
       ]
     },
@@ -67,17 +67,17 @@
         {
           "action": "RESOLVE",
           "nextState": "RESOLVED",
-          "roles": ["PMIS_SUPPORT"]
+          "roles": ["pmis_support"]
         },
         {
           "action": "SEND_BACK",
           "nextState": "SENT_BACK",
-          "roles": ["PMIS_SUPPORT"]
+          "roles": ["pmis_support"]
         },
         {
           "action": "CANCEL",
           "nextState": "CANCELLED",
-          "roles": ["*"]
+          "roles": ["super_admin", "org_admin", "admin", "project_admin", "division_approver", "division_owner", "director_admin"]
         }
       ]
     },
@@ -88,12 +88,12 @@
         {
           "action": "RESUBMIT",
           "nextState": "OPEN",
-          "roles": ["*"]
+          "roles": ["super_admin", "org_admin", "admin", "project_admin", "division_approver", "division_owner", "director_admin"]
         },
         {
           "action": "CANCEL",
           "nextState": "CANCELLED",
-          "roles": ["*"]
+          "roles": ["super_admin", "org_admin", "admin", "project_admin", "division_approver", "division_owner", "director_admin"]
         }
       ]
     },
@@ -104,7 +104,7 @@
         {
           "action": "CLOSE",
           "nextState": "CLOSED",
-          "roles": ["*"]
+          "roles": ["super_admin", "org_admin", "admin", "project_admin", "division_approver", "division_owner", "director_admin"]
         }
       ]
     },
